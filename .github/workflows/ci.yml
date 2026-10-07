@@ -15,8 +15,8 @@ jobs:
       run:
         working-directory: bangla-fact-check-main
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -31,8 +31,8 @@ jobs:
       run:
         working-directory: blockchain-anchor
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -43,8 +43,8 @@ jobs:
   python-and-artifacts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - name: Compile Python sources
@@ -52,6 +52,7 @@ jobs:
       - name: Verify committed ZK artifacts
         working-directory: zk
         run: |
-          sha256sum -c build/SHA256SUMS
-          cd build/input_binding_v2
+          cd build
+          sha256sum -c SHA256SUMS
+          cd input_binding_v2
           sha256sum -c SHA256SUMS
