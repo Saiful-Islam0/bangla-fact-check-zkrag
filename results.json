@@ -1,0 +1,392 @@
+{
+  "task": "RAG-BChain Comprehensive Evaluation for Bengali Fake News Detection",
+  "dataset": {
+    "total_samples": 13137,
+    "train_samples": 13037,
+    "test_samples": 100,
+    "seed": 42,
+    "test_fake": 54,
+    "test_real": 46
+  },
+  "finetuned_baseline_kaggle": {
+    "accuracy": 0.8151,
+    "precision": 0.8143,
+    "recall": 0.8124,
+    "f1": 0.8132
+  },
+  "ml_baselines": {
+    "Logistic Regression": {
+      "accuracy": 0.92,
+      "precision": 0.92,
+      "recall": 0.9227,
+      "f1": 0.9199,
+      "train_time_s": 0.23,
+      "infer_time_s": 0.0005
+    },
+    "Linear SVM": {
+      "accuracy": 0.97,
+      "precision": 0.9707,
+      "recall": 0.969,
+      "f1": 0.9698,
+      "train_time_s": 0.59,
+      "infer_time_s": 0.0006
+    },
+    "Random Forest": {
+      "accuracy": 0.98,
+      "precision": 0.9821,
+      "recall": 0.9783,
+      "f1": 0.9798,
+      "train_time_s": 53.5,
+      "infer_time_s": 0.1564
+    }
+  },
+  "slm_evaluation": {
+    "config_a_base": {
+      "name": "Base SLM (no RAG)",
+      "accuracy": 0.54,
+      "precision": 0.27,
+      "recall": 0.5,
+      "f1": 0.3506,
+      "confusion_matrix": [
+        [
+          54,
+          0
+        ],
+        [
+          46,
+          0
+        ]
+      ]
+    },
+    "config_b_base_rag": {
+      "name": "Base SLM + RAG",
+      "accuracy": 0.54,
+      "precision": 0.27,
+      "recall": 0.5,
+      "f1": 0.3506,
+      "confusion_matrix": [
+        [
+          54,
+          0
+        ],
+        [
+          46,
+          0
+        ]
+      ]
+    },
+    "config_c_ft_rag": {
+      "name": "Fine-tuned Prompt + RAG",
+      "accuracy": 0.54,
+      "precision": 0.27,
+      "recall": 0.5,
+      "f1": 0.3506,
+      "confusion_matrix": [
+        [
+          54,
+          0
+        ],
+        [
+          46,
+          0
+        ]
+      ]
+    },
+    "rag_quality": {
+      "total_queries": 100,
+      "queries_with_relevant_context": 78,
+      "retrieval_precision_at_3": 0.78,
+      "avg_retrieval_latency_ms": 2687.3,
+      "total_rag_fetch_time_s": 34.79
+    },
+    "avg_latency_ms": {
+      "base": 411.7,
+      "base_rag": 491.0,
+      "ft_rag": 482.3
+    }
+  },
+  "case_studies": [
+    {
+      "seq_id": 1,
+      "headline": "রাঙামাটিতে অগ্নিকাণ্ডে ২০ দোকান পুড়ে ছাই",
+      "true_label": "Real",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• PIB Fact Check (@PIBFactCheck) / Posts / X: सोशल मीडिया पर एक वीडियो प्रसारित किया जा रहा है, जिसमें प्रधानमंत्री नरेंद्र मोदी को यह कहते हुए दिखाया गया है कि पुराने ₹20"
+    },
+    {
+      "seq_id": 2,
+      "headline": "২০২৩ সালের নির্বাচনের মনোনয়নের জন্য এখনই কোচিং সেন্টার খুলতে যাচ্ছে ইইউসিসি",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• নির্বাচন সংক্রান্ত অপতথ্য রুখতে যেসব পরামর্শ ফেক্টচেকার ...: নির্বাচন সংক্রান্ত অপতথ্য রুখতে যেসব পরামর্শ ফেক্টচেকার প্রতিষ্ঠানের | Election | Fact Check · Comments.\n• ভ"
+    },
+    {
+      "seq_id": 3,
+      "headline": "জাতীয় ঐক্য শেষ পর্যন্ত টিকবে কিনা সন্দেহ আছে: কাদের",
+      "true_label": "Real",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• আপনার একটি 'শেয়ার' কি সত্যের পক্ষে, নাকি গুজবের?: শক্তি জোগাতে কাজ করবে 'Fact Check Zone'। Fact Check Zone — তথ্যের শুদ্ধতায়, আমরা আছি আপনার সাথে।"
+    },
+    {
+      "seq_id": 4,
+      "headline": "আবার ও বিয়ে করছেন অপু বিশ্বাস?",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• ফ্যাক্ট চেক: ... ভিত্তিক সংবাদ সংস্থা এএফপির একটি অভ্যন্তরীণ বিভাগ, যার লক্ষ্য হলো পৃথিবীর যেখানে যখন যা ঘটুক তার সঠিক, ভারসাম্যপূর্ণ ও নিরপেক্ষ সংবাদ প্রকাশ করা। যে আইন"
+    },
+    {
+      "seq_id": 5,
+      "headline": "অনেক অনেক দিন আগের কথা, মুরগিরা যখন উড়তে পারত",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• শিক্ষামন্ত্রীকে নিয়ে অনবরত গুজব! দেখুন ফ্যাক্টচেক | Rumors ...: শিক্ষামন্ত্রীকে নিয়ে অনবরত গুজব! দেখুন ফ্যাক্টচেক | Rumors Scanner | Fact Check | Ekattor TV #fakenews "
+    },
+    {
+      "seq_id": 6,
+      "headline": "eআরকি ইলেকশন সাজেশন : নিরপেক্ষ নির্বাচনের ১০টি পদ্ধতি",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• নির্বাচন সংক্রান্ত অপতথ্য রুখতে যেসব পরামর্শ ফেক্টচেকার ...: নির্বাচন সংক্রান্ত অপতথ্য রুখতে যেসব পরামর্শ ফেক্টচেকার প্রতিষ্ঠানের | Election | Fact Check · Comments.\n• ন"
+    },
+    {
+      "seq_id": 7,
+      "headline": "মান্টো আমাকে আধা কিলো অপরাধবোধ দিয়ে গেছেন",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• ভুল তথ্য বা গুজব প্রতিরোধে Fact Check করে তথ্যের সত্যতা যাচাই ...: ভুল তথ্য বা গুজব প্রতিরোধে Fact Check করে তথ্যের সত্যতা যাচাই করুন। ভুল তথ্যের ক্ষতিকর প্রভাব এড়াতে আ"
+    },
+    {
+      "seq_id": 8,
+      "headline": "ভাইরাল 'সুপারম্যান' মাশরাফি",
+      "true_label": "Real",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": true,
+      "context_snippet": "\n\n[ওয়েব সত্যতা যাচাই তথ্য]:\n• Rumor Scanner – Fact Check Bangladesh: আওয়ামী লীগের নিষেধাজ্ঞা তুলে নেওয়া প্রসঙ্গে মিশা সওদাগরের নামে ভুয়া মন্তব্য প্রচার ... সম্প্রতি, চলচ্চিত্র অভিনেতা খলনায়ক মিশা"
+    },
+    {
+      "seq_id": 9,
+      "headline": "আমার সেলফি আমি তুলবো যেভাবে খুশি সেভাবে তুলবো। - Bengal Beats",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": false,
+      "context_snippet": ""
+    },
+    {
+      "seq_id": 10,
+      "headline": "ঈদ উপলক্ষ্যে বরিশাইল্যা ভাষায় গান নিয়ে আসছেন বিশ্ববিখ্যাত ব্যান্ড বিটলস - Bengal",
+      "true_label": "Fake",
+      "base_pred": "Fake",
+      "base_rag_pred": "Fake",
+      "ft_rag_pred": "Fake",
+      "raw_output": "",
+      "had_context": false,
+      "context_snippet": ""
+    }
+  ],
+  "statistical_tests": {
+    "mcnemar_base_vs_ftrag": {
+      "chi2": 0.0,
+      "p_value": 1.0,
+      "n01": 0,
+      "n10": 0
+    },
+    "mcnemar_ml_vs_ftrag": {
+      "chi2": 42.0227,
+      "p_value": 0.0,
+      "n01": 44,
+      "n10": 0
+    },
+    "bootstrap_95ci_accuracy": [
+      0.45,
+      0.64
+    ],
+    "bootstrap_95ci_f1": [
+      0.3103,
+      0.3902
+    ]
+  },
+  "calibration": {
+    "base_slm": {
+      "ece": 0.46,
+      "brier_score": 0.46
+    },
+    "ft_rag": {
+      "ece": 0.46,
+      "brier_score": 0.46
+    },
+    "ml_best": {
+      "ece": 0.02,
+      "brier_score": 0.02
+    },
+    "ml_best_name": "Random Forest"
+  },
+  "error_taxonomy": {
+    "total_errors": 46,
+    "breakdown": {
+      "satire_clickbait": 0,
+      "retrieval_failure": 5,
+      "reasoning_ambiguity": 39,
+      "code_mixing": 2,
+      "short_content": 0
+    },
+    "percentage": {
+      "satire_clickbait": 0.0,
+      "retrieval_failure": 10.9,
+      "reasoning_ambiguity": 84.8,
+      "code_mixing": 4.3,
+      "short_content": 0.0
+    },
+    "examples": [
+      {
+        "headline": "রাঙামাটিতে অগ্নিকাণ্ডে ২০ দোকান পুড়ে ছাই",
+        "true": "Real",
+        "predicted": "Fake",
+        "error_type": "reasoning_ambiguity"
+      },
+      {
+        "headline": "জাতীয় ঐক্য শেষ পর্যন্ত টিকবে কিনা সন্দেহ আছে: কাদের",
+        "true": "Real",
+        "predicted": "Fake",
+        "error_type": "reasoning_ambiguity"
+      },
+      {
+        "headline": "ভাইরাল 'সুপারম্যান' মাশরাফি",
+        "true": "Real",
+        "predicted": "Fake",
+        "error_type": "reasoning_ambiguity"
+      },
+      {
+        "headline": "শ্রীলঙ্কার বিপক্ষে ইংল্যান্ডের টেস্ট দল ঘোষণা, নতুন মুখ বার্নস",
+        "true": "Real",
+        "predicted": "Fake",
+        "error_type": "retrieval_failure"
+      },
+      {
+        "headline": "সরকারি চাকরিতে কোটা বাতিল করে পরিপত্র প্রকাশ",
+        "true": "Real",
+        "predicted": "Fake",
+        "error_type": "reasoning_ambiguity"
+      }
+    ]
+  },
+  "ablation_study": [
+    {
+      "component": "TF-IDF + Best ML (Random Forest)",
+      "accuracy": 0.98,
+      "f1": 0.9798
+    },
+    {
+      "component": "Base SLM (no RAG)",
+      "accuracy": 0.54,
+      "f1": 0.3506
+    },
+    {
+      "component": "Base SLM + RAG",
+      "accuracy": 0.54,
+      "f1": 0.3506
+    },
+    {
+      "component": "Fine-tuned SLM (no RAG, Kaggle baseline)",
+      "accuracy": 0.8151,
+      "f1": 0.8132
+    },
+    {
+      "component": "Fine-tuned Prompt + RAG (Proposed)",
+      "accuracy": 0.54,
+      "f1": 0.3506
+    }
+  ],
+  "robustness_analysis": [
+    {
+      "noise_rate": 0.0,
+      "accuracy": 0.54,
+      "f1": 0.3506
+    },
+    {
+      "noise_rate": 0.02,
+      "accuracy": 0.54,
+      "f1": 0.3506
+    },
+    {
+      "noise_rate": 0.05,
+      "accuracy": 0.54,
+      "f1": 0.3506
+    },
+    {
+      "noise_rate": 0.1,
+      "accuracy": 0.54,
+      "f1": 0.3506
+    }
+  ],
+  "computational_overhead": {
+    "slm_inference_latency_ms": {
+      "base": 411.7,
+      "base_rag": 491.0,
+      "ft_rag": 482.3
+    },
+    "rag_retrieval_latency_ms": 2687.3,
+    "ml_baselines_train_time_s": {
+      "Logistic Regression": 0.23,
+      "Linear SVM": 0.59,
+      "Random Forest": 53.5
+    },
+    "model_parameters": {
+      "DeepSeek-R1-Distill-Qwen-7B": "7B (QLoRA: LoRA rank=16, α=32)",
+      "Groq API (llama-3.1-8b)": "8B (API-hosted)"
+    },
+    "training_config": {
+      "gpu": "Kaggle T4 x2",
+      "optimizer": "AdamW",
+      "learning_rate": "2e-4",
+      "lora_rank": 16,
+      "lora_alpha": 32,
+      "lora_dropout": 0.05,
+      "batch_size": 4,
+      "gradient_accumulation": 4,
+      "epochs": 3,
+      "quantization": "4-bit (QLoRA via BitsAndBytes)",
+      "max_seq_length": 512,
+      "ram_at_inference": "≤ 8 GB"
+    },
+    "blockchain_throughput": {
+      "observed_tps": "1.6–2.0",
+      "theoretical_max_tps": "29.3",
+      "gas_per_registration": "~85,000",
+      "block_interval_s": 12
+    }
+  }
+}

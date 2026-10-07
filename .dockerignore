@@ -1,0 +1,14 @@
+.git
+.env
+code/.env
+**/__pycache__
+**/*.pyc
+**/node_modules
+zk/ptau
+code/claim_metadata
+code/claim_snapshots
+code/flagged_sources
+code/uploaded_images
+code/image_metadata
+code/zk_proofs
+Dataset

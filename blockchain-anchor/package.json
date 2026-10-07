@@ -1,0 +1,28 @@
+{
+  "name": "zkrag-verification-anchor",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20 <26"
+  },
+  "scripts": {
+    "chain": "hardhat node",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.cjs --network localhost",
+    "setup": "hardhat run scripts/auto_setup.cjs --network localhost",
+    "bridge": "node src/bridge.cjs",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "dotenv": "^18.0.3",
+    "ethers": "6.17.0",
+    "express": "4.22.3"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "2.0.8",
+    "@nomicfoundation/hardhat-ethers": "3.0.8",
+    "chai": "4.5.0",
+    "hardhat": "2.22.19"
+  }
+}

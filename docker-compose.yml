@@ -1,0 +1,52 @@
+services:
+  anchor:
+    build:
+      context: ./blockchain-anchor
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+      - "8545:8545"
+    environment:
+      - ZKRAG_EVM_RPC_URL=${ZKRAG_EVM_RPC_URL:-http://127.0.0.1:8545}
+      - ZKRAG_ANCHOR_BRIDGE_HOST=0.0.0.0
+      - ZKRAG_ANCHOR_BRIDGE_PORT=8787
+      - ZKRAG_ANCHOR_CONTRACT_ADDRESS=${ZKRAG_ANCHOR_CONTRACT_ADDRESS:-}
+      - ZKRAG_ANCHOR_PRIVATE_KEY=${ZKRAG_ANCHOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - ZKRAG_ANCHOR_CONFIRMATIONS=${ZKRAG_ANCHOR_CONFIRMATIONS:-1}
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - anchor
+    env_file:
+      - .env
+    environment:
+      - ZKRAG_ANCHOR_BRIDGE_URL=http://anchor:8787
+    ports:
+      - "8000:8000"
+      - "80:8000"
+    volumes:
+      - claim_metadata:/app/claim_metadata
+      - claim_snapshots:/app/claim_snapshots
+      - flagged_sources:/app/flagged_sources
+      - uploaded_images:/app/uploaded_images
+      - image_metadata:/app/image_metadata
+      - zk_proofs:/app/zk_proofs
+      - zk_audits:/app/zk_audits
+      - model_cache:/root/.cache
+      - easyocr_cache:/root/.EasyOCR
+    restart: unless-stopped
+
+volumes:
+  claim_metadata:
+  claim_snapshots:
+  flagged_sources:
+  uploaded_images:
+  image_metadata:
+  zk_proofs:
+  zk_audits:
+  model_cache:
+  easyocr_cache:

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bangla-fact-check-main
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: bangla-fact-check-main/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  blockchain:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: blockchain-anchor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: blockchain-anchor/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  python-and-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Python sources
+        run: python -m compileall -q code *.py
+      - name: Verify committed ZK artifacts
+        working-directory: zk
+        run: |
+          sha256sum -c build/SHA256SUMS
+          cd build/input_binding_v2
+          sha256sum -c SHA256SUMS

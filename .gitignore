@@ -1,0 +1,59 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# Python
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+test_claim_metadata/
+
+# JavaScript
+**/node_modules/
+**/dist/
+npm-debug.log*
+
+# Application runtime data
+uploaded_images/
+image_metadata/
+claim_metadata/
+claim_snapshots/
+flagged_sources/
+code/uploaded_images/
+code/image_metadata/
+code/claim_metadata/
+code/claim_snapshots/
+code/flagged_sources/
+code/zk_proofs/
+code/zk_audits/
+
+# Generated blockchain and ZK files
+blockchain-anchor/artifacts/
+blockchain-anchor/cache/
+zk/node_modules/
+zk/ptau/
+zk/build/**/*_0000.zkey
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp

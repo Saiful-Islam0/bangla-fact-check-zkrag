@@ -1,0 +1,125 @@
+{
+  "generated_at": "2026-09-15",
+  "warmup_runs_per_case": 1,
+  "measured_runs_per_case": 5,
+  "environment": {
+    "platform": "macOS-26.0-x86_64-i386-64bit",
+    "python": "3.12.1",
+    "node": "v25.2.1",
+    "circuit": "evidence-input-binding-16-v2",
+    "constraints": 11075
+  },
+  "cases": {
+    "1": {
+      "canonical_commitment_ms": {
+        "median": 0.1291859953198582,
+        "min": 0.1272450026590377,
+        "max": 0.15705199621152133
+      },
+      "poseidon_tree_ms": {
+        "median": 853.1269200029783,
+        "min": 823.6877570016077,
+        "max": 871.1328270001104
+      },
+      "prompt_commitment_ms": {
+        "median": 1.2550979881780222,
+        "min": 1.1702080082613975,
+        "max": 1.6585209959885105
+      },
+      "proof_ms": {
+        "median": 5361.548755012336,
+        "min": 5274.998583001434,
+        "max": 5619.185091010877
+      },
+      "verification_ms": {
+        "median": 3014.943128990126,
+        "min": 2987.580070999684,
+        "max": 3171.5387500007637
+      },
+      "proof_package_bytes": {
+        "median": 14663,
+        "min": 14660,
+        "max": 14664
+      },
+      "peak_parent_rss_bytes": {
+        "median": 16461824,
+        "min": 16416768,
+        "max": 16490496
+      }
+    },
+    "5": {
+      "canonical_commitment_ms": {
+        "median": 0.2604429901111871,
+        "min": 0.24544101324863732,
+        "max": 0.3075920103583485
+      },
+      "poseidon_tree_ms": {
+        "median": 875.5119309935253,
+        "min": 846.7581839940976,
+        "max": 881.4864820014918
+      },
+      "prompt_commitment_ms": {
+        "median": 1.3395179994404316,
+        "min": 1.3269409973872826,
+        "max": 1.7250520031666383
+      },
+      "proof_ms": {
+        "median": 5328.5942540096585,
+        "min": 5295.441842012224,
+        "max": 5758.2369469892
+      },
+      "verification_ms": {
+        "median": 3043.9572790055536,
+        "min": 2995.887839992065,
+        "max": 3106.67052899953
+      },
+      "proof_package_bytes": {
+        "median": 18822,
+        "min": 18820,
+        "max": 18824
+      },
+      "peak_parent_rss_bytes": {
+        "median": 16523264,
+        "min": 16510976,
+        "max": 16547840
+      }
+    },
+    "10": {
+      "canonical_commitment_ms": {
+        "median": 0.37060800241306424,
+        "min": 0.3675940097309649,
+        "max": 0.37085199437569827
+      },
+      "poseidon_tree_ms": {
+        "median": 855.3459980030311,
+        "min": 853.5387790034292,
+        "max": 873.2810570072616
+      },
+      "prompt_commitment_ms": {
+        "median": 1.4847340062260628,
+        "min": 1.4361490029841661,
+        "max": 1.5649879933334887
+      },
+      "proof_ms": {
+        "median": 5407.068451997475,
+        "min": 5346.006125007989,
+        "max": 5495.505519007565
+      },
+      "verification_ms": {
+        "median": 3037.82036100165,
+        "min": 2988.1982229999267,
+        "max": 3156.649505996029
+      },
+      "proof_package_bytes": {
+        "median": 24050,
+        "min": 24048,
+        "max": 24052
+      },
+      "peak_parent_rss_bytes": {
+        "median": 16666624,
+        "min": 16658432,
+        "max": 16674816
+      }
+    }
+  }
+}

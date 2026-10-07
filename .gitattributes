@@ -1,0 +1,12 @@
+# Keep the research dataset downloadable while avoiding expensive web diffs.
+Dataset/*.csv -diff linguist-generated=true
+
+# Normalize text files across platforms.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp4 binary
+*.wasm binary
+*.zkey binary
+*.r1cs binary

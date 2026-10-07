@@ -1,0 +1,11 @@
+{
+  "circuit_version": "evidence-input-binding-16-v2",
+  "circom": "2.2.3",
+  "snarkjs": "0.7.6",
+  "circomlib": "2.0.5",
+  "curve": "BN254",
+  "proof_system": "Groth16",
+  "tree_capacity": 16,
+  "max_documents": 10,
+  "powers_of_tau": "powersOfTau28_hez_final_14.ptau"
+}

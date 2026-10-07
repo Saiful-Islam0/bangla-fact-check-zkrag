@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-09-15",
+  "warmup_runs_per_case": 1,
+  "measured_runs_per_case": 5,
+  "environment": {
+    "platform": "macOS-26.0-x86_64-i386-64bit",
+    "cpu": "Intel(R) Core(TM) i5-1038NG7 CPU @ 2.00GHz",
+    "physical_cores": 4,
+    "logical_cores": 8,
+    "memory_bytes": 17179869184,
+    "python": "3.12.1",
+    "node": "v25.2.1",
+    "circuit": "evidence-membership-16-v1"
+  },
+  "measurement_notes": {
+    "canonical_commitment_ms": "Unicode NFC canonicalization, canonical JSON serialization, and SHA-256 digest splitting in Python.",
+    "poseidon_tree_ms": "A fresh Node.js process builds circomlibjs Poseidon and constructs the fixed 16-leaf tree; process initialization is included.",
+    "proof_ms": "generate_proof wall time, including evidence revalidation, Poseidon tree/path recomputation, witness generation, Groth16 proving, and the proof generator's internal verification.",
+    "verification_ms": "A separate verify_proof_package call, including package-integrity checks and a fresh Node.js/snarkjs verification process.",
+    "proof_package_bytes": "Compact UTF-8 JSON serialization of the portable proof package, not a compressed binary Groth16 proof.",
+    "peak_rss_bytes": "Python parent-process ru_maxrss; Node.js child-process memory is not included and this value must not be treated as total prover peak memory."
+  },
+  "cases": {
+    "1": {
+      "canonical_commitment_ms": {"median": 0.1446940004825592, "min": 0.14149199705570936, "max": 0.2524369992897846},
+      "poseidon_tree_ms": {"median": 930.1440619965433, "min": 918.1659730020328, "max": 952.1869490054087},
+      "proof_ms": {"median": 2824.576391001756, "min": 2791.8788039969513, "max": 2897.6388230003067},
+      "verification_ms": {"median": 728.7711320022936, "min": 720.3469469968695, "max": 754.8081290005939},
+      "proof_package_bytes": {"median": 1547, "min": 1546, "max": 1548},
+      "peak_rss_bytes": {"median": 15286272, "min": 15257600, "max": 15302656}
+    },
+    "5": {
+      "canonical_commitment_ms": {"median": 0.2652039984241128, "min": 0.26103299751412123, "max": 0.41968699952121824},
+      "poseidon_tree_ms": {"median": 941.9752539979527, "min": 934.295220002241, "max": 966.2368860008428},
+      "proof_ms": {"median": 2810.701627000526, "min": 2805.188651997014, "max": 2825.0304449975374},
+      "verification_ms": {"median": 732.242228994437, "min": 720.4515599951264, "max": 733.8325660020928},
+      "proof_package_bytes": {"median": 1546, "min": 1543, "max": 1547},
+      "peak_rss_bytes": {"median": 15319040, "min": 15314944, "max": 15319040}
+    },
+    "10": {
+      "canonical_commitment_ms": {"median": 0.3908040016540326, "min": 0.380679004592821, "max": 0.4672189970733598},
+      "poseidon_tree_ms": {"median": 937.4065400043037, "min": 930.2708440009155, "max": 986.2289640004747},
+      "proof_ms": {"median": 2816.7418700031703, "min": 2806.5356180013623, "max": 3206.021732999943},
+      "verification_ms": {"median": 724.335760998656, "min": 720.3775880043395, "max": 742.742376998649},
+      "proof_package_bytes": {"median": 1546, "min": 1544, "max": 1546},
+      "peak_rss_bytes": {"median": 15343616, "min": 15335424, "max": 15347712}
+    }
+  }
+}
