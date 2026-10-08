@@ -1,4 +1,4 @@
-# Bangla FactCheck zkRAG
+# Bangla FactCheck zkRAG.
 
 [![CI](https://github.com/Saiful-Islam0/bangla-fact-check-zkrag/actions/workflows/ci.yml/badge.svg)](https://github.com/Saiful-Islam0/bangla-fact-check-zkrag/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
