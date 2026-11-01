@@ -18,8 +18,13 @@ Start-Sleep 25
 That will show the address the app sees. But rather than go round again, just allow every address this server owns — remote machines stay blocked either way, and the window gets closed after the wizard:
 
 ```powershell
-Get-EventLog -LogName Application -Source HSBCArchiveUAT -Newest 20 | Format-List
-Get-ChildItem D:\HSBCArchiveData\Runtime -Recurse -Filter *.log | Sort-Object LastWriteTime -Descending | Select-Object -First 3 FullName, LastWriteTime
+Stop-Service HSBCArchive
+foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
+    $k, $v = $e -split '=', 2
+    Set-Item -Path "Env:$k" -Value $v
+}
+cd D:\HSBCArchive\app
+.\HSBC.Archive.Web.exe
 ```
 
 Want `200`. If an IPv6 address shows up in that printed list that wasn't in your three, that was the culprit.
