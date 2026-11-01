@@ -1,25 +1,32 @@
-Then it isn't that branch. The gap is that your foreground run never captured the Finish click — the log only shows page loads, then shutdown.
+The log is clean — no antiforgery failure, no host rejection, no exception. The request arrives and something returns 400 without logging a thing. Combined with the blank page earlier, I think the browser is the problem: that server only has **Internet Explorer**, and Orchard's setup form won't post correctly from IE11.
 
-Run it again with debug logging turned up, which makes the two silent rejectors (host filtering and antiforgery) print:
+Test it from your own laptop with a modern browser. Add your laptop's IP to the allowlist first:
 
-```powershell
-Stop-Service HSBCArchive
-foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
-    $k, $v = $e -split '=', 2
-    Set-Item -Path "Env:$k" -Value $v
-}
-$env:Logging__LogLevel__Default = 'Debug'
-$env:Logging__LogLevel__Microsoft_AspNetCore = 'Debug'
-cd D:\HSBCArchive\app
-.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\foreground.log
-```
-
-Now go to the browser, load the setup page fresh, fill it in and **click Finish**. Then Ctrl+C and:
+On **your laptop**, get its address:
 
 ```powershell
-Start-Service HSBCArchive
-Select-String -Path D:\HSBCArchive\foreground.log -Pattern 'Antiforgery|HostFiltering|Host header|400|Exception|Error|Warning' |
-  Select-Object -Last 40 | ForEach-Object { $_.Line }
+ipconfig | Select-String IPv4
 ```
 
-Send me that. My best guess now is host filtering — it rejects with a bare 400 and logs only at Debug, which is exactly the silence we're seeing — but the POST may be going out under a host that the GET didn't, and I'd rather see it than keep narrowing by elimination.
+Then on the **server**:
+
+```powershell
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$j.Archive.Deployment.SetupAllowedIPs = [string[]]($j.Archive.Deployment.SetupAllowedIPs + '<your laptop IPv4>')
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+$j.Archive.Deployment.SetupAllowedIPs
+Restart-Service HSBCArchive
+```
+
+Then from your laptop open **https://bdw25135475:9443** in Edge or Chrome. You'll get a certificate warning — click through it (Advanced → Proceed), since the self-signed certificate isn't trusted there yet.
+
+If the wizard completes from your laptop, that confirms IE was the problem, and it's worth noting in the handover: the archive needs a modern browser, so the server console is not a usable client.
+
+If your laptop can't reach the server at all, check from the laptop:
+
+```powershell
+Test-NetConnection -ComputerName bdw25135475 -Port 9443
+```
+
+Before you do all that — which browser were you using on the server when you clicked Finish? If it was IE, this is almost certainly it.
