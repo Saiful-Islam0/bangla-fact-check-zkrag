@@ -1,43 +1,29 @@
-Two separate problems, and your Tomcat discovery explains the first one.
+Only one place in the whole app returns 403 — that setup filter — so it is the IP comparison. The capture came back empty because the job hadn't connected yet in 400ms.
 
-**8443 was already taken by Apache Tomcat.** Kestrel couldn't bind it, so the service started and immediately died — that's the `Stopped` in the warning. My earlier suggestion to check 8443 was free clearly didn't get run; my fault for treating it as optional.
-
-**Also, the AD domain has a typo.** You entered `hpab.adroot.hsbc`, but your server's FQDN is `bdw25135475.HBAP.ADROOT.HSBC` — it's **hbap**, not **hpab**.
-
-### 1. Confirm the cause and find a free port
+Hold a connection open so the query can see it:
 
 ```powershell
-$cert = Get-Item Cert:\LocalMachine\My\F3BF32F7B80337F8C6345DD2E481193E0CF49B13
-$name = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert).Key.UniqueName
-$keyFile = Join-Path $env:ProgramData "Microsoft\Crypto\Keys\$name"
-icacls $keyFile /grant "NT AUTHORITY\NETWORK SERVICE:(R)"
-Restart-Service HSBCArchive
-Start-Sleep 25
-(Invoke-WebRequest https://bdw25135475:9443/health -UseBasicParsing).Content
+$c = New-Object Net.Sockets.TcpClient('bdw25135475', 9443)
+Get-NetTCPConnection -LocalPort 9443 | Where-Object State -ne 'Listen' |
+  Select-Object LocalAddress, RemoteAddress
+$c.Close()
 ```
 
-Pick a port that isn't in that list — `9443` is a good bet. Verify:
+That will show the address the app sees. But rather than go round again, just allow every address this server owns — remote machines stay blocked either way, and the window gets closed after the wizard:
 
 ```powershell
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$ips = @('127.0.0.1','::1') + (Get-NetIPAddress | Where-Object { $_.IPAddress -notmatch '%' } |
+        Select-Object -ExpandProperty IPAddress)
+$j.Archive.Deployment.SetupAllowedIPs = [string[]]($ips | Sort-Object -Unique)
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+$j.Archive.Deployment.SetupAllowedIPs
 Restart-Service HSBCArchive
 Start-Sleep 25
 (Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
 ```
 
-No output = free.
+Want `200`. If an IPv6 address shows up in that printed list that wasn't in your three, that was the culprit.
 
-### 2. Fix both in one go
-
-```powershell
-$job = Start-Job { Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing }
-Start-Sleep -Milliseconds 400
-Get-NetTCPConnection -LocalPort 9443 | Where-Object State -ne 'Listen' |
-  Select-Object State, LocalAddress, RemoteAddress
-Remove-Job $job -Force
-```
-
-You want `Running` and `Healthy`. Then the wizard is at **https://bdw25135475:9443**.
-
-No need to re-run setup — the service, permissions and connection string are all in place; only the config file needed changing.
-
-If the service still stops, paste the event log output from step 1 and I'll read the real error rather than guess again.
+This widens the allowlist to the server itself only — no other machine can reach the wizard. Still close it properly once setup is done, and send me the `RemoteAddress` from the first command if you ran it, so we know what it actually was.
