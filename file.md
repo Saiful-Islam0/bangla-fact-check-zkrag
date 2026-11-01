@@ -1,18 +1,21 @@
-Then the network is fine and it's the HTTP layer. Get the real status from the laptop, bypassing the browser:
+404 at root means the app thinks the site is already set up — so the wizard isn't being served. The tenant state file probably survived, or was rewritten.
 
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-[Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-$r = Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue
-$r.StatusCode
-$r.Content.Length
+Get-ChildItem D:\HSBCArchiveData\Runtime\Orchard -Recurse | Select-Object FullName
+Get-Content D:\HSBCArchiveData\Runtime\Orchard\Sites\Default\appsettings.json -ErrorAction SilentlyContinue
 ```
 
-That tells us which problem it is:
+If that file exists and shows `"State": "Running"`, that's it — Orchard is loading a tenant whose database you emptied. Clear it properly, with the service stopped so nothing rewrites it:
 
-- **200 with content** → the server is serving fine and the browser is at fault; hard-refresh with Ctrl+Shift+R, or try a private window — it may be caching the earlier failure.
-- **403** → allowlist mismatch despite the entry (different IP than you think).
-- **400** → `AllowedHosts`. Make sure you're browsing `https://bdw25135475:9443` and not the FQDN `bdw25135475.hbap.adroot.hsbc:9443`, since only the short name is allowed right now.
-- **An error, no status** → TLS. The self-signed certificate isn't trusted on the laptop; in the browser click Advanced → Proceed.
+```powershell
+Stop-Service HSBCArchive
+Remove-Item D:\HSBCArchiveData\Runtime\Orchard\Sites -Recurse -Force
+Get-ChildItem D:\HSBCArchiveData\Runtime\Orchard
+Start-Service HSBCArchive
+Start-Sleep 25
+(Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
+```
 
-Also paste me the exact wording the browser shows — "no web page found" is phrased differently by Edge, Chrome and IE, and the wording identifies which layer is failing.
+The `Get-ChildItem` in the middle should show no `Sites` folder. Then the root should serve the setup wizard again.
+
+If the file says `"State": "Uninitialized"` instead, or the folder is already gone, tell me — then the 404 is coming from somewhere else and I'll want the foreground log again with the request you make.
