@@ -1,27 +1,25 @@
-Only one place in the whole app returns 403 — that setup filter — so it is the IP comparison. The capture came back empty because the job hadn't connected yet in 400ms.
+Then it isn't that branch. The gap is that your foreground run never captured the Finish click — the log only shows page loads, then shutdown.
 
-Hold a connection open so the query can see it:
-
-```powershell
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$ips = @('127.0.0.1','::1','136.25.66.82','fe80::5ca4:e723:1b6c:9808%6') +
-       (Get-NetIPAddress | Select-Object -ExpandProperty IPAddress)
-$j.Archive.Deployment.SetupAllowedIPs = [string[]]($ips | Sort-Object -Unique)
-$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
-$j.Archive.Deployment.SetupAllowedIPs
-Restart-Service HSBCArchive
-Start-Sleep 25
-(Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
-```
-
-That will show the address the app sees. But rather than go round again, just allow every address this server owns — remote machines stay blocked either way, and the window gets closed after the wizard:
+Run it again with debug logging turned up, which makes the two silent rejectors (host filtering and antiforgery) print:
 
 ```powershell
-$r = Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing
-($r.Content | Select-String -Pattern '(?s).{200}DatabaseProvider.{400}' -AllMatches).Matches.Value
+Stop-Service HSBCArchive
+foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
+    $k, $v = $e -split '=', 2
+    Set-Item -Path "Env:$k" -Value $v
+}
+$env:Logging__LogLevel__Default = 'Debug'
+$env:Logging__LogLevel__Microsoft_AspNetCore = 'Debug'
+cd D:\HSBCArchive\app
+.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\foreground.log
 ```
 
-Want `200`. If an IPv6 address shows up in that printed list that wasn't in your three, that was the culprit.
+Now go to the browser, load the setup page fresh, fill it in and **click Finish**. Then Ctrl+C and:
 
-This widens the allowlist to the server itself only — no other machine can reach the wizard. Still close it properly once setup is done, and send me the `RemoteAddress` from the first command if you ran it, so we know what it actually was.
+```powershell
+Start-Service HSBCArchive
+Select-String -Path D:\HSBCArchive\foreground.log -Pattern 'Antiforgery|HostFiltering|Host header|400|Exception|Error|Warning' |
+  Select-Object -Last 40 | ForEach-Object { $_.Line }
+```
+
+Send me that. My best guess now is host filtering — it rejects with a bare 400 and logs only at Debug, which is exactly the silence we're seeing — but the POST may be going out under a host that the GET didn't, and I'd rather see it than keep narrowing by elimination.
