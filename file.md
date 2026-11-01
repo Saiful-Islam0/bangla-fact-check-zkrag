@@ -27,16 +27,11 @@ No output = free.
 ### 2. Fix both in one go
 
 ```powershell
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$j.Kestrel.Endpoints.Https.Url = 'https://bdw25135475:9443'
-$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory.Domain = 'hbap.adroot.hsbc'
-$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
-New-NetFirewallRule -DisplayName 'HSBC Archive UAT HTTPS' -Direction Inbound -Protocol TCP -LocalPort 9443 -Action Allow | Out-Null
-Restart-Service HSBCArchive
-Start-Sleep 20
-Get-Service HSBCArchive
-Invoke-WebRequest https://bdw25135475:9443/health -UseBasicParsing | Select-Object -Expand Content
+$r = Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -MaximumRedirection 0 -ErrorAction SilentlyContinue
+$r.StatusCode
+$r.Headers.Location
+$r.Content.Length
+$r.Content.Substring(0, [Math]::Min(600, $r.Content.Length))
 ```
 
 You want `Running` and `Healthy`. Then the wizard is at **https://bdw25135475:9443**.
