@@ -3,10 +3,16 @@ Only one place in the whole app returns 403 — that setup filter — so it is t
 Hold a connection open so the query can see it:
 
 ```powershell
-$c = New-Object Net.Sockets.TcpClient('bdw25135475', 9443)
-Get-NetTCPConnection -LocalPort 9443 | Where-Object State -ne 'Listen' |
-  Select-Object LocalAddress, RemoteAddress
-$c.Close()
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$ips = @('127.0.0.1','::1','136.25.66.82','fe80::5ca4:e723:1b6c:9808%6') +
+       (Get-NetIPAddress | Select-Object -ExpandProperty IPAddress)
+$j.Archive.Deployment.SetupAllowedIPs = [string[]]($ips | Sort-Object -Unique)
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+$j.Archive.Deployment.SetupAllowedIPs
+Restart-Service HSBCArchive
+Start-Sleep 25
+(Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
 ```
 
 That will show the address the app sees. But rather than go round again, just allow every address this server owns — remote machines stay blocked either way, and the window gets closed after the wizard:
