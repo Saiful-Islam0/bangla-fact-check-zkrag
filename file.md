@@ -1,39 +1,36 @@
-That's the answer: your AD account name is the employee ID, not `rmsff01` — that's just the local Windows profile folder name on the server.
-
-The SuperAdmin was provisioned as `rmsff01`, which doesn't exist in AD, so it can never log in. Since the database is brand new and holds nothing, the clean fix is to redo setup with the right username.
-
-**1. Fix the username and stop the service**
+Check whether the service is actually running:
 
 ```powershell
-Stop-Service HSBCArchive
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory.InitialSuperAdminUserName = '<your employee ID>'
-$j.Archive.Deployment.SetupEnabled = $true
-$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
-$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory
+Get-Service HSBCArchive
+(Invoke-WebRequest https://bdw25135475:9443/health -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
 ```
 
-**2. Reset the database** in SSMS:
-
-```sql
-USE master;
-ALTER DATABASE BDArchive SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-DROP DATABASE BDArchive;
-CREATE DATABASE BDArchive;
-GO
-USE BDArchive;
-CREATE USER bdarchive FOR LOGIN bdarchive;
-ALTER ROLE db_owner ADD MEMBER bdarchive;
-```
-
-**3. Clear tenant state and restart**
+If it's **Stopped**, start it and watch for the reason:
 
 ```powershell
-Remove-Item D:\HSBCArchiveData\Runtime\Orchard\Sites -Recurse -Force -ErrorAction SilentlyContinue
 Start-Service HSBCArchive
 ```
 
-**4. Run the wizard again** from your laptop browser, then log in with your **employee ID** and Windows password. The lockout is gone with the old database.
+If that errors, or it starts and stops again, run it in the foreground to see the real message:
 
-Type the employee ID exactly as AD has it — no domain prefix, no `@`. The check you just ran returning `True` is the same call the login makes, so if that account name worked there, it will work here.
+```powershell
+Stop-Service HSBCArchive -ErrorAction SilentlyContinue
+foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
+    $k, $v = $e -split '=', 2
+    Set-Item -Path "Env:$k" -Value $v
+}
+cd D:\HSBCArchive\app
+.\HSBC.Archive.Web.exe
+```
+
+Two likely causes, both from the edits just made:
+
+- **The JSON got malformed or lost a required value.** `UatDeployment.Validate` throws at startup if `DataRoot`, `StorageRoot`, `AllowedHosts` or the connection string are missing or invalid, and the service dies immediately. Check it still looks right:
+
+  ```powershell
+  Get-Content D:\HSBCArchive\app\appsettings.UAT.json -Raw | ConvertFrom-Json | ConvertTo-Json -Depth 24
+  ```
+
+- **The database user wasn't recreated properly**, so the app can't connect at startup.
+
+Send me what the foreground run prints — the first `Error` or `Exception` line is the answer.
