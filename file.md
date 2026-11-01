@@ -19,8 +19,9 @@ Start-Sleep 25
 Pick a port that isn't in that list — `9443` is a good bet. Verify:
 
 ```powershell
-Get-Content -LiteralPath 'D:\HSBCArchive\app\appsettings.UAT.json' -Raw |
-  Select-String -Pattern '"Deployment"[\s\S]{0,300}' | ForEach-Object { $_.Matches.Value }
+Restart-Service HSBCArchive
+Start-Sleep 25
+(Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
 ```
 
 No output = free.
@@ -28,10 +29,11 @@ No output = free.
 ### 2. Fix both in one go
 
 ```powershell
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-'SetupEnabled: ' + $j.Archive.Deployment.SetupEnabled
-'AllowedIPs  : ' + ($j.Archive.Deployment.SetupAllowedIPs -join ', ')
+$job = Start-Job { Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing }
+Start-Sleep -Milliseconds 400
+Get-NetTCPConnection -LocalPort 9443 | Where-Object State -ne 'Listen' |
+  Select-Object State, LocalAddress, RemoteAddress
+Remove-Job $job -Force
 ```
 
 You want `Running` and `Healthy`. Then the wizard is at **https://bdw25135475:9443**.
