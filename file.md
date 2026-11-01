@@ -7,8 +7,18 @@ Two separate problems, and your Tomcat discovery explains the first one.
 ### 1. Confirm the cause and find a free port
 
 ```powershell
-Get-EventLog -LogName Application -Source HSBCArchiveUAT -Newest 5 | Format-List
-Get-NetTCPConnection -State Listen | Select-Object LocalPort | Sort-Object LocalPort -Unique
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory.Domain = 'hbap.adroot.hsbc'
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+Restart-Service HSBCArchive
+Start-Sleep 25
+Get-Service HSBCArchive | Select-Object Status, Name
+'AD domain  : ' + $j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory.Domain
+'URL        : ' + $j.Kestrel.Endpoints.Https.Url
+'Health     : ' + (Invoke-WebRequest https://bdw25135475:9443/health -UseBasicParsing).Content
+
 ```
 
 Pick a port that isn't in that list — `9443` is a good bet. Verify:
