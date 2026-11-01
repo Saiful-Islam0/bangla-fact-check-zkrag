@@ -1,21 +1,18 @@
-404 at root means the app thinks the site is already set up — so the wizard isn't being served. The tenant state file probably survived, or was rewritten.
-
-```powershell
-Get-ChildItem D:\HSBCArchiveData\Runtime\Orchard -Recurse | Select-Object FullName
-Get-Content D:\HSBCArchiveData\Runtime\Orchard\Sites\Default\appsettings.json -ErrorAction SilentlyContinue
-```
-
-If that file exists and shows `"State": "Running"`, that's it — Orchard is loading a tenant whose database you emptied. Clear it properly, with the service stopped so nothing rewrites it:
+There it is — `tenants.json`. Orchard 3.x keeps tenant state in that file, not in a `Sites` folder, so deleting `Sites` removed nothing. It still records the Default tenant as already set up, which is why root returns 404 instead of the wizard.
 
 ```powershell
 Stop-Service HSBCArchive
-Remove-Item D:\HSBCArchiveData\Runtime\Orchard\Sites -Recurse -Force
-Get-ChildItem D:\HSBCArchiveData\Runtime\Orchard
+Get-Content D:\HSBCArchiveData\Runtime\Orchard\tenants.json
+Remove-Item D:\HSBCArchiveData\Runtime\Orchard\* -Recurse -Force
 Start-Service HSBCArchive
 Start-Sleep 25
 (Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
 ```
 
-The `Get-ChildItem` in the middle should show no `Sites` folder. Then the root should serve the setup wizard again.
+The `Get-Content` just shows you what it said before deleting. Only that folder goes — the data-protection keys live in `D:\HSBCArchiveData\Runtime\Keys`, which is untouched.
 
-If the file says `"State": "Uninitialized"` instead, or the folder is already gone, tell me — then the 404 is coming from somewhere else and I'll want the foreground log again with the request you make.
+Expect `200`, then the wizard at **https://bdw25135475:9443** from your laptop.
+
+Your AD settings now read `45517160` with domain `hbap.adroot.hsbc`, which matches the account that returned `True` — so after the wizard, log in with that ID and your Windows password.
+
+Worth noting for the handover: a clean reinstall needs *both* the database dropped and `Runtime\Orchard\tenants.json` removed. Doing only one leaves the archive in this half-state.
