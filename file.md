@@ -1,46 +1,19 @@
-That first attempt got far enough to create tables, so Orchard now refuses to set up over them. You need a clean slate.
+Good news hidden in that: the account exists and is AD-mapped, so provisioning worked. The lockout is the archive's own Identity lockout — **5 failed attempts, 15 minutes** ([appsettings template](config/uat/appsettings.UAT.template.json)) — triggered by the earlier failed logins.
 
-**1. Stop the app**
+**Wait 15 minutes**, then try once. Don't keep retrying: every wrong attempt also counts against your **real AD account's** bad-password counter, and you can lock yourself out of Windows domain-wide.
 
-```powershell
-Stop-Service HSBCArchive
-```
-
-**2. Clear the database.** In SSMS on BDW25135476, if `BDArchive` is dedicated to this app (it is), the cleanest route:
-
-```sql
-USE master;
-ALTER DATABASE BDArchive SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-DROP DATABASE BDArchive;
-CREATE DATABASE BDArchive;
-```
-
-Then re-grant the login, since dropping the database drops its users:
-
-```sql
-USE BDArchive;
-CREATE USER bdarchive FOR LOGIN bdarchive;
-ALTER ROLE db_owner ADD MEMBER bdarchive;
-```
-
-If you'd rather not drop the database, drop just the archive's tables instead — run this and then execute the statements it produces:
-
-```sql
-USE BDArchive;
-SELECT 'DROP TABLE [' + s.name + '].[' + t.name + '];'
-FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
-WHERE t.name LIKE 'HSBC[_]%';
-```
-
-**3. Clear the tenant state on the server**, or Orchard will still think a site exists:
+While you wait, verify the password and domain path independently, outside the app. Run this on the server **once**:
 
 ```powershell
-Remove-Item D:\HSBCArchiveData\Runtime\Orchard\Sites -Recurse -Force -ErrorAction SilentlyContinue
-Start-Service HSBCArchive
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$pc = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('Domain','hbap.adroot.hsbc')
+$pc.ValidateCredentials('rmsff01','<your password>')
 ```
 
-**4. Redo the wizard from your laptop** in Edge or Chrome.
+- **True** → password and domain are right; the archive login will work once the lockout expires.
+- **False** → wrong password, or `rmsff01` isn't the right account name. Check with `whoami` on your laptop — it prints `domain\username`, and the archive needs just the username part.
+- **An exception** → the service can't reach the domain this way; we'd switch `Domain` to a specific domain controller hostname.
 
-On the email: Orchard validates the format strictly, and the super-user email also has to differ from anything already taken. Use a plain, real-looking corporate address — if `saiful.islam@noexternalmail.hsbc.com` was rejected, that's likely the `noexternalmail` subdomain tripping its check, so use your normal address.
+This uses exactly the same call the archive uses ([ArchiveAdVerifier.cs:33-35](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdVerifier.cs#L33-L35)), so whatever it returns is what the login will do.
 
-Nothing else needs redoing — the service, certificate, permissions and connection string all stay as they are.
+Same caution: that call hits AD for real. Run it once with the password you're confident about, not repeatedly.
