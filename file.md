@@ -1,23 +1,18 @@
-The app is fine then — `Running` and `/health` returning 200.
-
-So it's the browser side. Try **https://bdw25135475:9443** from your laptop again (the one that worked before), and tell me the exact message.
-
-Two things that commonly break at this point:
-
-**The allowlist** — confirm your laptop's IP is still there:
+Then the network is fine and it's the HTTP layer. Get the real status from the laptop, bypassing the browser:
 
 ```powershell
-(Get-Content D:\HSBCArchive\app\appsettings.UAT.json -Raw | ConvertFrom-Json).Archive.Deployment.SetupAllowedIPs
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+$r = Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue
+$r.StatusCode
+$r.Content.Length
 ```
 
-It should still include your laptop's IPv4 — the edits only touched two fields, but worth confirming. Note that a missing entry gives **403**, not "page not found".
+That tells us which problem it is:
 
-**Which URL you used** — it must be `https://` and include `:9443`. Without the port the browser tries 443, which is Tomcat's, and without `https` it tries plain HTTP on a TLS-only port; both look like "can't find the page".
+- **200 with content** → the server is serving fine and the browser is at fault; hard-refresh with Ctrl+Shift+R, or try a private window — it may be caching the earlier failure.
+- **403** → allowlist mismatch despite the entry (different IP than you think).
+- **400** → `AllowedHosts`. Make sure you're browsing `https://bdw25135475:9443` and not the FQDN `bdw25135475.hbap.adroot.hsbc:9443`, since only the short name is allowed right now.
+- **An error, no status** → TLS. The self-signed certificate isn't trusted on the laptop; in the browser click Advanced → Proceed.
 
-If the laptop genuinely can't connect, check from the laptop:
-
-```powershell
-Test-NetConnection -ComputerName bdw25135475 -Port 9443
-```
-
-`TcpTestSucceeded : False` would mean the firewall rule is missing — but nothing we changed should have removed it.
+Also paste me the exact wording the browser shows — "no web page found" is phrased differently by Edge, Chrome and IE, and the wording identifies which layer is failing.
