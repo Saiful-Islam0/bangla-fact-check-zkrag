@@ -1,3 +1,10 @@
-Get-Service | Where-Object { $_.Name -like 'MSSQL*' } | Select-Object Name, Status
-Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 1433,1434 } | Select-Object LocalAddress, LocalPort
-Get-NetFirewallRule -Enabled True -Direction Inbound | Where-Object DisplayName -like '*SQL*' | Select-Object DisplayName
+$pw = Read-Host 'SQL password' -AsSecureString
+$cs = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+$cs['Data Source'] = 'BDW25135476\UBDRMSS01'
+$cs['Initial Catalog'] = 'BDArchive'
+$cs['User ID'] = 'bdarchive'
+$cs['Password'] = [Runtime.InteropServices.Marshal]::PtrToStringUni([Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($pw))
+$cs['Encrypt'] = $true
+$cs['TrustServerCertificate'] = $true
+$conn = New-Object System.Data.SqlClient.SqlConnection $cs.ConnectionString
+$conn.Open(); $conn.ServerVersion; $conn.Close()
