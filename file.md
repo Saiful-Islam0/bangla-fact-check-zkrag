@@ -1,19 +1,39 @@
-Good news hidden in that: the account exists and is AD-mapped, so provisioning worked. The lockout is the archive's own Identity lockout — **5 failed attempts, 15 minutes** ([appsettings template](config/uat/appsettings.UAT.template.json)) — triggered by the earlier failed logins.
+That's the answer: your AD account name is the employee ID, not `rmsff01` — that's just the local Windows profile folder name on the server.
 
-**Wait 15 minutes**, then try once. Don't keep retrying: every wrong attempt also counts against your **real AD account's** bad-password counter, and you can lock yourself out of Windows domain-wide.
+The SuperAdmin was provisioned as `rmsff01`, which doesn't exist in AD, so it can never log in. Since the database is brand new and holds nothing, the clean fix is to redo setup with the right username.
 
-While you wait, verify the password and domain path independently, outside the app. Run this on the server **once**:
+**1. Fix the username and stop the service**
 
 ```powershell
-Add-Type -AssemblyName System.DirectoryServices.AccountManagement
-$pc = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('Domain','hbap.adroot.hsbc')
-$pc.ValidateCredentials('rmsff01','<your password>')
+Stop-Service HSBCArchive
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory.InitialSuperAdminUserName = '<your employee ID>'
+$j.Archive.Deployment.SetupEnabled = $true
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+$j.OrchardCore.Default.HSBCArchive.Authentication.ActiveDirectory
 ```
 
-- **True** → password and domain are right; the archive login will work once the lockout expires.
-- **False** → wrong password, or `rmsff01` isn't the right account name. Check with `whoami` on your laptop — it prints `domain\username`, and the archive needs just the username part.
-- **An exception** → the service can't reach the domain this way; we'd switch `Domain` to a specific domain controller hostname.
+**2. Reset the database** in SSMS:
 
-This uses exactly the same call the archive uses ([ArchiveAdVerifier.cs:33-35](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdVerifier.cs#L33-L35)), so whatever it returns is what the login will do.
+```sql
+USE master;
+ALTER DATABASE BDArchive SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE BDArchive;
+CREATE DATABASE BDArchive;
+GO
+USE BDArchive;
+CREATE USER bdarchive FOR LOGIN bdarchive;
+ALTER ROLE db_owner ADD MEMBER bdarchive;
+```
 
-Same caution: that call hits AD for real. Run it once with the password you're confident about, not repeatedly.
+**3. Clear tenant state and restart**
+
+```powershell
+Remove-Item D:\HSBCArchiveData\Runtime\Orchard\Sites -Recurse -Force -ErrorAction SilentlyContinue
+Start-Service HSBCArchive
+```
+
+**4. Run the wizard again** from your laptop browser, then log in with your **employee ID** and Windows password. The lockout is gone with the old database.
+
+Type the employee ID exactly as AD has it — no domain prefix, no `@`. The check you just ran returning `True` is the same call the login makes, so if that account name worked there, it will work here.
