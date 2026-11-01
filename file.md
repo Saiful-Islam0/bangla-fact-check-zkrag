@@ -19,7 +19,8 @@ Start-Sleep 25
 Pick a port that isn't in that list — `9443` is a good bet. Verify:
 
 ```powershell
-Get-NetTCPConnection -State Listen -LocalPort 9443 -ErrorAction SilentlyContinue
+Get-Content -LiteralPath 'D:\HSBCArchive\app\appsettings.UAT.json' -Raw |
+  Select-String -Pattern '"Deployment"[\s\S]{0,300}' | ForEach-Object { $_.Matches.Value }
 ```
 
 No output = free.
