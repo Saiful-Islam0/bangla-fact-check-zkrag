@@ -18,16 +18,8 @@ Start-Sleep 25
 That will show the address the app sees. But rather than go round again, just allow every address this server owns — remote machines stay blocked either way, and the window gets closed after the wizard:
 
 ```powershell
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$ips = @('127.0.0.1','::1') + (Get-NetIPAddress | Where-Object { $_.IPAddress -notmatch '%' } |
-        Select-Object -ExpandProperty IPAddress)
-$j.Archive.Deployment.SetupAllowedIPs = [string[]]($ips | Sort-Object -Unique)
-$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
-$j.Archive.Deployment.SetupAllowedIPs
-Restart-Service HSBCArchive
-Start-Sleep 25
-(Invoke-WebRequest https://bdw25135475:9443/ -UseBasicParsing -ErrorAction SilentlyContinue).StatusCode
+Get-EventLog -LogName Application -Source HSBCArchiveUAT -Newest 20 | Format-List
+Get-ChildItem D:\HSBCArchiveData\Runtime -Recurse -Filter *.log | Sort-Object LastWriteTime -Descending | Select-Object -First 3 FullName, LastWriteTime
 ```
 
 Want `200`. If an IPv6 address shows up in that printed list that wasn't in your three, that was the culprit.
