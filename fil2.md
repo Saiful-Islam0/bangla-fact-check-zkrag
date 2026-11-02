@@ -1,55 +1,29 @@
-Now it's unambiguous:
+Built and documented; full verification re-running now. Here's what you'll do on the server once it's green.
 
-- **`45517160`** exists with the `HSBC.ActiveDirectory` login but **`RoleNames: []`** — that's your 403.
-- `hsbcbd` is the Orchard super-user with `Administrator` (can't log in: AD only).
-- All five roles exist, including `SuperAdmin`.
+**The config you'll use** — no scanner, explicit waiver:
 
-So provisioning created the account and the login, then failed before attaching the role ([ArchiveAdProvisioning.cs:51-53](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdProvisioning.cs#L51-L53)) — and because the migration swallows that failure by design (your choice earlier, and the right one: it left the schema intact), it did so silently.
+```json
+"Scanner": { "ScanningWaived": true }
+```
 
-The migration has a re-entry point that does nothing but provision. Rewind it and let it run again.
+I did it as a waiver rather than deleting the check, for three reasons: the deployment still refuses uploads if someone forgets to make the decision, it logs a warning (event 2122) at every start so the choice is visible in the audit trail rather than invisible in a diff, and it's one line to reverse if a scanner is ever required. It's also rejected if combined with a scanner command, so the two can't silently disagree.
 
-**1. Stop the service** — Orchard caches documents in memory and would overwrite your edit:
+You'll copy one DLL (`HSBC.Archive.Media.dll`, ~98 KB — not the whole package), add three settings, and restart:
 
 ```powershell
 Stop-Service HSBCArchive
-```
-
-**2. In SSMS:**
-
-```sql
-USE BDArchive;
-
-DECLARE @idx INT = (
-    SELECT TRY_CAST(m.[key] AS INT)
-    FROM HSBC__Document d
-    CROSS APPLY OPENJSON(d.Content, '$.DataMigrations') m
-    WHERE d.Type LIKE '%DataMigrationRecord%'
-      AND JSON_VALUE(m.value, '$.DataMigrationClass') LIKE '%ArchiveRoleMigrations%');
-
-UPDATE HSBC__Document
-SET Content = JSON_MODIFY(Content,
-        '$.DataMigrations[' + CAST(@idx AS NVARCHAR(10)) + '].Version', CAST(2 AS INT))
-WHERE Type LIKE '%DataMigrationRecord%';
-
-SELECT JSON_VALUE(m.value, '$.DataMigrationClass') AS cls, JSON_VALUE(m.value, '$.Version') AS ver
-FROM HSBC__Document d CROSS APPLY OPENJSON(d.Content, '$.DataMigrations') m
-WHERE d.Type LIKE '%DataMigrationRecord%';
-```
-
-The last query should show `ArchiveRoleMigrations` at version **2**.
-
-**3. Start and sign in:**
-
-```powershell
+Copy-Item D:\HSBCArchive\app\HSBC.Archive.Media.dll D:\HSBCArchive\app\HSBC.Archive.Media.dll.bak
+# copy the new DLL over D:\HSBCArchive\app\HSBC.Archive.Media.dll
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$m = $j.OrchardCore.Default.HSBCArchive.Media
+$m | Add-Member -NotePropertyName Scanner -NotePropertyValue ([pscustomobject]@{ ScanningWaived = $true }) -Force
+$m.ProcessingApproved = $true
+$m.UploadsEnabled = $true
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
 Start-Service HSBCArchive
 ```
 
-On restart Orchard runs `UpdateFrom2Async`, which only calls provisioning — and this time the role and the user both already exist and are committed, so attaching the role should succeed. Log in as `45517160` and you should land in the admin panel.
+All three settings are needed together — `UploadsEnabled` alone still fails startup validation, which is the trap from earlier.
 
-If you still get 403, check straight away:
-
-```sql
-SELECT * FROM HSBC__UserByRoleNameIndex;
-```
-
-A `SuperAdmin` row means it worked and it's a stale cookie — sign out and back in. No row means it failed again, and then I want the foreground log, because that would tell us *why* `AddToRoleAsync` is rejecting and that's a code fix, not a deployment one.
+I'll give you the exact DLL path and its checksum when the gate finishes.
