@@ -1,24 +1,40 @@
-My error — the DLL was built as version 0.18.0 and so demanded `HSBC.Archive.Core 0.18.0.0`, which isn't on the server. Your config was fine all along (`UploadsEnabled: True`, `ProcessingApproved: True`, `ScanningWaived: True`).
+Two separate things, and the answer differs.
 
-Rebuilt against 0.17.0, matching your installed package:
+## Viewing — yes, subject to four practical details
 
-```
-/private/tmp/claude-501/-Users-saiful-Documents-HSBC/51324287-e87e-4df8-a3b8-e6933bbb8f16/scratchpad/HSBC.Archive.Media.dll
-```
+- **Network:** the firewall rule opens 9443 to the corporate network, so reachable.
+- **URL:** they must use `https://bdw25135475:9443` — with `https`, with the port, and with the **short** name. `AllowedHosts` is only `bdw25135475`, so the FQDN returns 400. Add more names if you want them to work:
+  ```json
+  "AllowedHosts": "bdw25135475;bdw25135475.hbap.adroot.hsbc"
+  ```
+- **Certificate warning** on every machine, because it's self-signed. They can click through, or push `D:\HSBCArchive\archive-uat.cer` to Trusted Root via GPO — worth asking your Windows team for, since a security warning trains people badly.
+- **Not Internet Explorer.** Edge or Chrome.
 
-SHA-256 `97d8f5a80ab33f8da1e23f18f174a505368132e15f39b35078f0b699d7d4465a`
+To see exactly what a visitor gets without signing in, open the site in a **private window**. That's the definitive check and takes a few seconds.
 
-Copy it over and start the service — the config needs no further changes:
+## Logging in — no, not until you add each person
+
+There's no "any domain user can sign in" mode. Sign-in requires an account that already exists in the archive with an AD link ([ArchiveAdSignInManager.cs:31-33](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdSignInManager.cs#L31-L33)); the password is then checked against AD. Your own account works because setup provisioned it.
+
+To add someone, signed in as SuperAdmin:
+
+1. Go to **`https://bdw25135475:9443/Admin/HSBCArchive/Users/Create`**
+2. Enter their **AD username** (employee ID form, no domain prefix, no `@`) and email
+3. On the next screen assign a role — `Admin` for editors, `SuperAdmin` only for people who manage users
+
+They then sign in with that username and their normal Windows password. No password is ever stored by the archive.
+
+## One thing to do right now
+
+The Orchard setup window is still open. Close it before you tell anyone the URL:
 
 ```powershell
-Stop-Service HSBCArchive -ErrorAction SilentlyContinue
-Copy-Item <new dll> D:\HSBCArchive\app\HSBC.Archive.Media.dll -Force
-Get-FileHash D:\HSBCArchive\app\HSBC.Archive.Media.dll -Algorithm SHA256 | Select-Object -Expand Hash
-Start-Service HSBCArchive
-Start-Sleep 25
-Get-Service HSBCArchive
+$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
+$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+$j.Archive.Deployment.SetupEnabled = $false
+$j.Archive.Deployment.SetupAllowedIPs = @()
+$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
+Restart-Service HSBCArchive
 ```
 
-The hash should read `97D8F5A80AB33F8DA1E23F18F174A505368132E15F39B35078F0B699D7D4465A`, and the service should stay `Running`.
-
-If it stops again, run the foreground command as before — but the previous error was purely the version mismatch, so I expect it to come up this time.
+While it's open, anyone on an allow-listed address can reach the first-run wizard. Low risk on an internal network, but it's not a window to leave open once people start using the site.
