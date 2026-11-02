@@ -1,38 +1,22 @@
-Fix it on the live install — this must be set **before** the tenant is created, so the database has to be empty (it already is):
+Login is working then — that 403 means you authenticated but have no permissions. `SuperAdmin` does include `AccessAdminPanel` ([ArchiveRoles.cs:18-20](src/Modules/HSBC.Archive.Admin/Security/ArchiveRoles.cs#L18-L20)), so the role never got attached to your account. (The super-user being rejected is expected — AD is the only accepted credential.)
+
+Confirm which way it failed:
 
 ```powershell
-Stop-Service HSBCArchive
-$p = 'D:\HSBCArchive\app\appsettings.UAT.json'
-$j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$j.OrchardCore.Default | Add-Member -NotePropertyName IdentityColumnSize -NotePropertyValue 'Int64' -Force
-$j.Archive.Deployment.SetupEnabled = $true
-$j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
-Remove-Item D:\HSBCArchiveData\Runtime\Orchard -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path D:\HSBCArchiveData\Runtime\Orchard -Force | Out-Null
-icacls D:\HSBCArchiveData\Runtime\Orchard /inheritance:r /grant:r "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)M" "BUILTIN\Administrators:(OI)(CI)F" "NT AUTHORITY\SYSTEM:(OI)(CI)F" /Q
-$j.OrchardCore.Default
-Start-Service HSBCArchive
+Get-EventLog -LogName Application -Source HSBCArchiveUAT -Newest 40 |
+  Where-Object { $_.EventID -in 2100, 2110, 2111, 2112 } |
+  Format-List TimeGenerated, EventID, Message
 ```
 
-Confirm `IdentityColumnSize : Int64` appears in the printed output, then run the wizard again from your laptop.
+- **2111** — provisioned fine, and the role is there; then the 403 is something else.
+- **2112** — provisioning aborted partway. It creates the user, adds the AD login, *then* adds the role ([ArchiveAdProvisioning.cs:45-53](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdProvisioning.cs#L45-L53)) — a failure in between leaves exactly what you're seeing: an account that can log in but owns nothing.
 
-Right after the wizard finishes, check in SSMS that both sides now agree:
+And check what the account actually has, in SSMS:
 
 ```sql
-SELECT t.name AS table_name, c.name AS column_name, ty.name AS data_type
-FROM sys.tables t
-JOIN sys.columns c ON c.object_id = t.object_id
-JOIN sys.types ty ON ty.user_type_id = c.user_type_id
-WHERE (t.name = 'HSBC_Document' AND c.name = 'Id') OR c.name = 'DocumentId'
-ORDER BY t.name;
+SELECT Content FROM HSBC_Document WHERE Type LIKE '%OrchardCore.Users.Models.User%';
 ```
 
-Every row should say `bigint`. If `HSBC_Document.Id` still comes back as `int`, the setting isn't reaching shell settings and I'll find the right key from the assembly rather than guess again.
+Look for `"RoleNames"` in that JSON — I expect it to be empty.
 
-I've also added the same line to [config/uat/appsettings.UAT.template.json](config/uat/appsettings.UAT.template.json) so future packages carry it.
-
----
-
-**Being straight about this one:** it's a real product defect, not a deployment mistake, and it was hidden by the release gap you already have on record — the build verifies against SQLite, and SQL Server acceptance was marked "not executed". The fix above is reasoned from the Orchard issue and the shipped assembly's `GetIdentityColumnSize(ShellSettings)` signature, not tested, which is why the verification query matters.
-
-Sources: [OrchardCMS/OrchardCore#16580](https://github.com/OrchardCMS/OrchardCore/issues/16580), [Orchard Core Data reference](https://docs.orchardcore.net/en/latest/reference/modules/Data/)
+Don't try to fix it through the admin UI; you can't get in, and the Orchard super-user can't log in either by design. Once I know which of the two it is, the fix is to make the migration re-run so provisioning completes — send me the event log output and the `RoleNames` value.
