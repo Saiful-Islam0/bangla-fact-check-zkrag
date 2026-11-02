@@ -1,27 +1,23 @@
-Good call. Let's read the actual error.
+Stock Orchard configuration, no custom YesSql setup — so I need the actual column types rather than theory. In SSMS against `BDArchive`:
 
-```powershell
-Get-Service HSBCArchive
+```sql
+SELECT t.name AS table_name, c.name AS column_name, ty.name AS data_type
+FROM sys.tables t
+JOIN sys.columns c ON c.object_id = t.object_id
+JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+WHERE (t.name = 'HSBC_Document' AND c.name = 'Id')
+   OR c.name = 'DocumentId'
+ORDER BY t.name;
 ```
 
-If the service is gone (you may have run the teardown), say so and we'll go to the script. Otherwise:
+That shows whether `HSBC_Document.Id` is `int` or `bigint`, and what the index tables used. One side will differ, and that difference is the whole bug.
 
-```powershell
-Stop-Service HSBCArchive
-foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
-    $k, $v = $e -split '=', 2
-    Set-Item -Path "Env:$k" -Value $v
-}
-cd D:\HSBCArchive\app
-.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\error.log
+Also tell me:
+
+```sql
+SELECT name, collation_name, compatibility_level FROM sys.databases WHERE name = 'BDArchive';
 ```
 
-Leave that window running. From your laptop, load the site, then load `/Admin`. Both should fail. Then Ctrl+C in the window and:
+My suspicion is that the database was created with a compatibility level or setting that makes YesSql pick a different identity column size than the one it uses for index tables — but I'd rather see it than assert it.
 
-```powershell
-Start-Service HSBCArchive
-Select-String -Path D:\HSBCArchive\error.log -Pattern '"LogLevel":"(Error|Critical)"' |
-  Select-Object -First 3 | ForEach-Object { $_.Line }
-```
-
-I want the **first** one, not the last — the later errors are usually consequences of it. If that returns nothing, run it again with `Warning` added to the pattern and send me the last ten lines instead.
+Worth saying plainly: this is the gap the release notes flagged. The package was verified against SQLite in the build, and SQL Server acceptance was recorded as "not executed". This is exactly the class of defect that gap was hiding, and it would have blocked UAT whichever way you deployed — IIS or service.
