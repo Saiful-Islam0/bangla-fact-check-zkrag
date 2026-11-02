@@ -1,20 +1,20 @@
-Then I'm looking in the wrong place. List what actually exists — make sure the query window is on **BDArchive**:
+The schema built completely — all 30 tables including `HSBC__UserIndex` and the story/import/insights indexes. **The `IdentityColumnSize: Int64` fix worked.** The table name is `HSBC__Document` with a double underscore (prefix + separator), which is why my earlier query failed.
+
+Now the roles:
 
 ```sql
 USE BDArchive;
-SELECT name FROM sys.tables ORDER BY name;
+SELECT * FROM HSBC__UserByRoleNameIndex;
+SELECT Id, Type, Content FROM HSBC__Document WHERE Type LIKE '%Users.Models.User%';
 ```
 
-Two possibilities that changes between:
+- `HSBC__UserByRoleNameIndex` should have a row with `RoleName = SuperAdmin` for your account. If it's empty, the role was never attached.
+- In the `Content` JSON, look for `"UserName"`, `"RoleNames"` and `"LoginInfos"`. I expect `UserName` to be `45517160` with a `HSBC.ActiveDirectory` login entry and an **empty** `RoleNames`.
 
-- **Tables with a different prefix** (or none) — the wizard may have been given a different table prefix than `HSBC_`, in which case the document table is `Document` or something else, and I'll adjust the queries.
-- **No tables at all** — then setup wrote to a different database than the one you're looking at, and the connection string in the service registry is pointing elsewhere. Check with:
+Also check the roles themselves exist:
 
-  ```powershell
-  (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment |
-    Where-Object { $_ -like 'OrchardCore*' } | ForEach-Object { ($_ -split 'Password=')[0] }
-  ```
+```sql
+SELECT Content FROM HSBC__Document WHERE Type LIKE '%Roles%';
+```
 
-  That prints the connection string with the password cut off, so you can see the server and database it really uses.
-
-The empty event log isn't surprising — nothing has been written to that source all session, so it isn't a reliable signal here. The table list is the useful one.
+Paste those and I'll tell you whether to re-run provisioning or just grant the role directly. Don't edit the JSON by hand yet — Orchard caches documents, and a manual edit done the wrong way is harder to undo than a clean re-provision.
