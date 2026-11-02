@@ -1,20 +1,28 @@
-The schema built completely — all 30 tables including `HSBC__UserIndex` and the story/import/insights indexes. **The `IdentityColumnSize: Int64` fix worked.** The table name is `HSBC__Document` with a double underscore (prefix + separator), which is why my earlier query failed.
-
-Now the roles:
+Clear picture forming: `UserByRoleNameIndex` has only `AUTHENTICATED` and `ADMINISTRATOR` — **no SuperAdmin rows at all**. Two user documents exist (42 and 44). Let me see exactly what each is:
 
 ```sql
 USE BDArchive;
-SELECT * FROM HSBC__UserByRoleNameIndex;
-SELECT Id, Type, Content FROM HSBC__Document WHERE Type LIKE '%Users.Models.User%';
+
+SELECT JSON_VALUE(Content, '$.UserName')  AS UserName,
+       JSON_QUERY(Content, '$.RoleNames') AS RoleNames,
+       JSON_QUERY(Content, '$.LoginInfos') AS Logins
+FROM HSBC__Document
+WHERE Type LIKE '%Users.Models.User%';
+
+SELECT JSON_VALUE(r.value, '$.RoleName') AS RoleName
+FROM HSBC__Document d
+CROSS APPLY OPENJSON(d.Content, '$.Roles') r
+WHERE d.Type LIKE '%Roles%';
+
+SELECT Content FROM HSBC__Document WHERE Type LIKE '%DataMigrationRecord%';
 ```
 
-- `HSBC__UserByRoleNameIndex` should have a row with `RoleName = SuperAdmin` for your account. If it's empty, the role was never attached.
-- In the `Content` JSON, look for `"UserName"`, `"RoleNames"` and `"LoginInfos"`. I expect `UserName` to be `45517160` with a `HSBC.ActiveDirectory` login entry and an **empty** `RoleNames`.
+What I'm looking for:
 
-Also check the roles themselves exist:
+1. Whether `45517160` exists as a user with a `HSBC.ActiveDirectory` login — it must, or you couldn't have logged in.
+2. Whether the `SuperAdmin` and `Admin` roles were created at all.
+3. The recorded migration version for `ArchiveRoleMigrations`.
 
-```sql
-SELECT Content FROM HSBC__Document WHERE Type LIKE '%Roles%';
-```
+The reason the third one matters: provisioning runs inside that migration, and there's a dedicated re-entry point (`UpdateFrom2Async`) that does nothing but provision. If the version reads `3`, setting it back to `2` and restarting makes Orchard re-run provisioning properly — adding the role through the real code path, so the indexes stay consistent.
 
-Paste those and I'll tell you whether to re-run provisioning or just grant the role directly. Don't edit the JSON by hand yet — Orchard caches documents, and a manual edit done the wrong way is harder to undo than a clean re-provision.
+I'd rather do that than hand-edit your user document. Send me those three results.
