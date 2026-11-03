@@ -1,37 +1,49 @@
-That's the decisive clue: it works when **you** run it, and fails when the **service** runs it. Same code, same files — different identity. So this is permissions on something `NT AUTHORITY\NETWORK SERVICE` can't touch.
+That's it, and the `icacls` output shows exactly why:
 
-First, get the error properly. `Get-EventLog` has never found anything all session; `Get-WinEvent` uses a different API and usually does:
-
-```powershell
-Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='HSBCArchiveUAT'} -MaxEvents 20 -ErrorAction SilentlyContinue |
-  Format-List TimeCreated, Id, Message
+```
+D:\HSBCArchiveData\Drop  BUILTIN\Administrators:(F)
+                         NT AUTHORITY\SYSTEM:(OI)(CI)(F)
+                         BUILTIN\Administrators:(OI)(CI)(F)
+                         BDW25135475\rmsff01:(OI)(CI)(F)
 ```
 
-Then check what the service account can actually reach:
+**No `NETWORK SERVICE` entry at all.** My `patch.ps1` removed inheritance and then its grant didn't apply — and I piped the result to `Out-Null` without checking the exit code, so it failed silently. My mistake; the same script checked exit codes everywhere else.
+
+It also explains why `Media` and `Runtime` work: look at their `(I)` flags — they're inherited from the drive root, including `BUILTIN\Users:(AD)(WD)`, and `NETWORK SERVICE` is a member of `Users`. Those folders lost their hardening when the teardown deleted `D:\HSBCArchiveData` and the app recreated them.
+
+Save as `D:\HSBCArchive\fixacl.ps1` and run it:
 
 ```powershell
+$svc = '*S-1-5-20'          # NT AUTHORITY\NETWORK SERVICE
+$adm = '*S-1-5-32-544'      # BUILTIN\Administrators
+$sys = '*S-1-5-18'          # NT AUTHORITY\SYSTEM
+
+Stop-Service HSBCArchive
+
+foreach ($path in 'D:\HSBCArchiveData\Runtime', 'D:\HSBCArchiveData\Media', 'D:\HSBCArchiveData\Drop') {
+    & icacls.exe $path /inheritance:r /grant:r "${svc}:(OI)(CI)M" "${adm}:(OI)(CI)F" "${sys}:(OI)(CI)F" /T /Q
+    if ($LASTEXITCODE -ne 0) { throw "icacls failed on $path with exit code $LASTEXITCODE" }
+    Write-Host "Secured $path" -ForegroundColor Green
+}
+
+Start-Service HSBCArchive
+Start-Sleep 20
+Get-Service HSBCArchive | Select-Object Status, Name
 icacls D:\HSBCArchiveData\Drop
-Get-ChildItem D:\HSBCArchiveData\Drop -File | ForEach-Object { icacls $_.FullName }
-icacls D:\HSBCArchiveData\Media
-icacls D:\HSBCArchiveData\Runtime
 ```
 
-Every one of those should list `NT AUTHORITY\NETWORK SERVICE:(M)` or `(OI)(CI)(M)`. The photo matters as much as the folder — ingest needs to **read it, create `_done`, and move it**, so the file itself needs delete rights, not just read. A file copied in before the ACL was set, or copied by a tool that preserves source permissions, can easily lack them.
+I'm using well-known SIDs rather than names — `*S-1-5-20` can't fail on account-name resolution, which is the likely reason the original grant didn't stick. `/T` applies to the photo already sitting in the folder, and this time a failure throws instead of being swallowed.
 
-To confirm the diagnosis in one step, temporarily run the service with full rights:
+The last line should now show `NT AUTHORITY\NETWORK SERVICE:(OI)(CI)(M)`.
+
+Then check the service is back on the right identity before testing:
 
 ```powershell
-sc.exe config HSBCArchive obj= LocalSystem
-Restart-Service HSBCArchive
+(Get-CimInstance Win32_Service -Filter "Name='HSBCArchive'").StartName
 ```
 
-Try the ingest. **If it works, it's definitely permissions** — and then put it straight back, because LocalSystem is far more privileged than this service should ever be:
+Must read `NT AUTHORITY\NETWORK SERVICE`, not `LocalSystem`. Your revert command looked like it succeeded, but confirm — leaving it on LocalSystem is the one outcome here worth avoiding.
 
-```powershell
-sc.exe config HSBCArchive 'obj=' 'NT AUTHORITY\NETWORK SERVICE'
-Restart-Service HSBCArchive
-```
+Then try the ingest again.
 
-Don't leave it on LocalSystem even overnight.
-
-Send me the `Get-WinEvent` output and the `icacls` results. One thing I'd like to know either way: when the service was running it, did the **thumbnails still appear**? If they did, reading works and it's the move or the media write that's failing — which points at different folders.
+Worth knowing: this also re-hardens `Runtime` and `Media`, which currently allow **any local user** to write to them via `BUILTIN\Users`. That's wider than intended for archive storage and media, and it's been that way since the teardown — so this fixes a real exposure as well as your ingest.
