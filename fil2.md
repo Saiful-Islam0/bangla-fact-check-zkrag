@@ -1,28 +1,37 @@
-The per-file loop catches everything, so this is an exception escaping before or after it — and the filter logs only the type name under event 2202. That type will tell us where:
+That's the decisive clue: it works when **you** run it, and fails when the **service** runs it. Same code, same files — different identity. So this is permissions on something `NT AUTHORITY\NETWORK SERVICE` can't touch.
+
+First, get the error properly. `Get-EventLog` has never found anything all session; `Get-WinEvent` uses a different API and usually does:
 
 ```powershell
-Stop-Service HSBCArchive
-foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
-    $k, $v = $e -split '=', 2
-    Set-Item -Path "Env:$k" -Value $v
-}
-cd D:\HSBCArchive\app
-.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\ingest.log
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='HSBCArchiveUAT'} -MaxEvents 20 -ErrorAction SilentlyContinue |
+  Format-List TimeCreated, Id, Message
 ```
 
-Reproduce the ingest from your laptop, Ctrl+C, then:
+Then check what the service account can actually reach:
 
 ```powershell
-Start-Service HSBCArchive
-Select-String -Path D:\HSBCArchive\ingest.log -Pattern '"LogLevel":"(Error|Critical)"' |
-  ForEach-Object { $_.Line } | Select-Object -Last 3
+icacls D:\HSBCArchiveData\Drop
+Get-ChildItem D:\HSBCArchiveData\Drop -File | ForEach-Object { icacls $_.FullName }
+icacls D:\HSBCArchiveData\Media
+icacls D:\HSBCArchiveData\Runtime
 ```
 
-Send me that. The message will read `Archive administration request failed: <TypeName>.` — the type name alone narrows it sharply:
+Every one of those should list `NT AUTHORITY\NETWORK SERVICE:(M)` or `(OI)(CI)(M)`. The photo matters as much as the folder — ingest needs to **read it, create `_done`, and move it**, so the file itself needs delete rights, not just read. A file copied in before the ACL was set, or copied by a tool that preserves source permissions, can easily lack them.
 
-- `ArchiveValidationException` → something rejected the batch before the per-file loop
-- `UnauthorizedAccessException` or `IOException` → the service account can't read the drop folder or move the file out of it
-- `ArchiveConcurrencyException` → the import batch bookkeeping disagreed
-- anything else → I'll trace it from there
+To confirm the diagnosis in one step, temporarily run the service with full rights:
 
-Also tell me: **what's the filename**, and did you fill in the **Title (English)** field? And confirm the photo is a `.jpg`/`.jpeg`/`.png`/`.webp` — if the thumbnail rendered on the page, the file is readable, which already rules out the permissions answer.
+```powershell
+sc.exe config HSBCArchive obj= LocalSystem
+Restart-Service HSBCArchive
+```
+
+Try the ingest. **If it works, it's definitely permissions** — and then put it straight back, because LocalSystem is far more privileged than this service should ever be:
+
+```powershell
+sc.exe config HSBCArchive 'obj=' 'NT AUTHORITY\NETWORK SERVICE'
+Restart-Service HSBCArchive
+```
+
+Don't leave it on LocalSystem even overnight.
+
+Send me the `Get-WinEvent` output and the `icacls` results. One thing I'd like to know either way: when the service was running it, did the **thumbnails still appear**? If they did, reading works and it's the move or the media write that's failing — which points at different folders.
