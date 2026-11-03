@@ -1,40 +1,68 @@
-Two separate things, and the answer differs.
+Thanks — that changes the answer completely. You're on the **self-contained Kestrel service**, and Kestrel picks the certificate by **subject name** from the store, not by thumbprint like IIS. (My project memory says IIS; that's wrong for your actual server and I'll fix it — see the end.)
 
-## Viewing — yes, subject to four practical details
+## 1. Find a trusted certificate
 
-- **Network:** the firewall rule opens 9443 to the corporate network, so reachable.
-- **URL:** they must use `https://bdw25135475:9443` — with `https`, with the port, and with the **short** name. `AllowedHosts` is only `bdw25135475`, so the FQDN returns 400. Add more names if you want them to work:
-  ```json
-  "AllowedHosts": "bdw25135475;bdw25135475.hbap.adroot.hsbc"
-  ```
-- **Certificate warning** on every machine, because it's self-signed. They can click through, or push `D:\HSBCArchive\archive-uat.cer` to Trusted Root via GPO — worth asking your Windows team for, since a security warning trains people badly.
-- **Not Internet Explorer.** Edge or Chrome.
+```powershell
+Get-ChildItem Cert:\LocalMachine\My | ForEach-Object {
+  [pscustomobject]@{
+    Thumbprint  = $_.Thumbprint
+    SimpleName  = $_.GetNameInfo('SimpleName', $false)
+    Issuer      = $_.Issuer
+    Expires     = $_.NotAfter.ToString('yyyy-MM-dd')
+    DnsNames    = ($_.DnsNameList | ForEach-Object { $_.Unicode }) -join ', '
+    PrivateKey  = $_.HasPrivateKey
+    Trusted     = [bool](Test-Certificate -Cert $_ -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
+  }
+} | Format-List
+```
 
-To see exactly what a visitor gets without signing in, open the site in a **private window**. That's the definitive check and takes a few seconds.
+You need `Trusted: True`, `PrivateKey: True`, an `Issuer` that isn't itself, and a `DnsNames` entry matching the name people type. Note the **`SimpleName`** of the one you pick — that's the value Kestrel needs, not the thumbprint.
 
-## Logging in — no, not until you add each person
+## 2. Check the subject name is unambiguous
 
-There's no "any domain user can sign in" mode. Sign-in requires an account that already exists in the archive with an AD link ([ArchiveAdSignInManager.cs:31-33](src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveAdSignInManager.cs#L31-L33)); the password is then checked against AD. Your own account works because setup provisioned it.
+Kestrel matches by *substring*, so this must return exactly one row:
 
-To add someone, signed in as SuperAdmin:
+```powershell
+$cert = Get-Item Cert:\LocalMachine\My\<thumbprint>
+$subject = $cert.GetNameInfo('SimpleName', $false)
+$subject
+@(Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Subject -like "*$subject*" }) |
+  Select-Object Thumbprint, Subject
+```
 
-1. Go to **`https://bdw25135475:9443/Admin/HSBCArchive/Users/Create`**
-2. Enter their **AD username** (employee ID form, no domain prefix, no `@`) and email
-3. On the next screen assign a role — `Admin` for editors, `SuperAdmin` only for people who manage users
+Two rows means Kestrel could pick the wrong one — delete the stale certificate first.
 
-They then sign in with that username and their normal Windows password. No password is ever stored by the archive.
+## 3. Grant the service read on the private key
 
-## One thing to do right now
+This is the one that silently drops every TLS handshake while the service shows `Running`:
 
-The Orchard setup window is still open. Close it before you tell anyone the URL:
+```powershell
+$name = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert).Key.UniqueName
+$keyFile = Join-Path $env:ProgramData "Microsoft\Crypto\Keys\$name"
+if (-not (Test-Path -LiteralPath $keyFile)) { $keyFile = Join-Path $env:ProgramData "Microsoft\Crypto\RSA\MachineKeys\$name" }
+icacls $keyFile /grant "NT AUTHORITY\NETWORK SERVICE:(R)"
+```
+
+## 4. Point the app at it and restart
 
 ```powershell
 $p = 'D:\HSBCArchive\app\appsettings.UAT.json'
 $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-$j.Archive.Deployment.SetupEnabled = $false
-$j.Archive.Deployment.SetupAllowedIPs = @()
+$j.Kestrel.Endpoints.Https.Certificate.Subject = $subject
+$j.AllowedHosts = 'bdw25135475;bdw25135475.hbap.adroot.hsbc'
 $j | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $p -Encoding UTF8
 Restart-Service HSBCArchive
+Start-Sleep 25
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Invoke-WebRequest https://bdw25135475.hbap.adroot.hsbc:9443/health -UseBasicParsing | Select-Object -Expand Content
 ```
 
-While it's open, anyone on an allow-listed address can reach the first-run wizard. Low risk on an internal network, but it's not a window to leave open once people start using the site.
+Use whichever name the certificate actually covers — usually the FQDN for a machine certificate, which is why `AllowedHosts` gets both. No bypass of certificate validation in that test: if it returns `Healthy`, the chain is genuinely trusted.
+
+## If no trusted certificate exists
+
+Then the server doesn't have one yet and you request it from the internal CA — same `certreq` route as any Windows host. Tell me and I'll give you the request file. The key point is that browsers stop warning only when they trust the **issuer**, which every domain-joined machine does for an internal CA; distributing your self-signed `.cer` means touching each machine instead.
+
+---
+
+**About my memory:** it currently records this deployment as IIS with ANCM in-process, and says the installed package is `0.18.x`. If you're still on the self-contained service at `0.17.0-uat.1`, that's wrong and will mislead the next chat — including the patch-version rule, which would hand you a DLL that won't load. Say the word and I'll correct it; I don't want to overwrite it on a guess, since something updated those files between sessions.
