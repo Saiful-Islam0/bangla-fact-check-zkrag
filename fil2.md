@@ -1,20 +1,25 @@
-Neither, exactly. You can't add source files on the server — there's no source tree and no SDK there, and the Razor views are compiled **into** the module DLLs (there's no separate views assembly). So a `.cshtml` dropped on the server would be ignored.
-
-But you don't need a full redeploy either. Same as the media fix: I build here, you copy the changed DLLs and restart. For this feature that's two files:
-
-- `HSBC.Archive.Admin.dll` — the screen, the controller, the thumbnail endpoint
-- `HSBC.Archive.Media.dll` — the ingest service and the drop-folder settings
-
-Plus three lines added to `appsettings.UAT.json` and a folder you create. Maybe two minutes of downtime.
-
-**One thing I need first**, because it bit us last time — confirm the installed version so I build the DLLs to bind against it:
+That message is the viewer's generic 500 page ([Error.cshtml:3](src/Modules/HSBC.Archive.Frontend/Views/Archive/Error.cshtml#L3)) — so search is throwing, and the real exception is hidden behind it. Same drill as the migration bug:
 
 ```powershell
-(Get-Item D:\HSBCArchive\app\HSBC.Archive.Core.dll).VersionInfo |
-  Select-Object FileVersion, ProductVersion
-Get-Content D:\HSBCArchive\release-manifest.txt -ErrorAction SilentlyContinue | Select-String -Pattern 'Version|Hosting'
+Stop-Service HSBCArchive
+foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
+    $k, $v = $e -split '=', 2
+    Set-Item -Path "Env:$k" -Value $v
+}
+cd D:\HSBCArchive\app
+.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\search.log
 ```
 
-My notes say `0.17.0-uat.1` for the self-contained service, but they also claim you've moved to IIS, which you haven't — so I'd rather read it off the server than trust them.
+Leave it running, do a search from your laptop browser, then Ctrl+C and:
 
-Send me that and I'll build it: thumbnails, pick-and-choose (not automatic), title from filename, ingested files moved to `_done`, 50 per run, optional event attachment for the batch.
+```powershell
+Start-Service HSBCArchive
+Select-String -Path D:\HSBCArchive\search.log -Pattern '"LogLevel":"(Error|Critical)"' |
+  Select-Object -First 2 | ForEach-Object { $_.Line }
+```
+
+Send me the **first** error line.
+
+My guess, for what it's worth: another SQL Server difference, like the `IdentityColumnSize` one. The build verifies against SQLite, so a query that relies on SQLite behaviour — collation, a LIKE pattern, or a type coercion — passes every test here and fails on SQL Server. That's the same gap that produced the schema bug, and it's why SQL Server acceptance being "not executed" matters.
+
+If the log shows nothing at `Error` level, re-run the Select-String with `Warning` included and send the last twenty lines instead — and tell me what you typed in the search box, since a specific character (an apostrophe, a `%`, Bangla text) would point somewhere quite different.
