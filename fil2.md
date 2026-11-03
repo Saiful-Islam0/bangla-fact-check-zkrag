@@ -1,4 +1,4 @@
-That message is the viewer's generic 500 page ([Error.cshtml:3](src/Modules/HSBC.Archive.Frontend/Views/Archive/Error.cshtml#L3)) — so search is throwing, and the real exception is hidden behind it. Same drill as the migration bug:
+The filter redacts the message by design, so I need the SQL itself. YesSql logs each command before running it — turn that on and the last statement before the error is the culprit:
 
 ```powershell
 Stop-Service HSBCArchive
@@ -6,20 +6,23 @@ foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCAr
     $k, $v = $e -split '=', 2
     Set-Item -Path "Env:$k" -Value $v
 }
+$env:Logging__LogLevel__YesSql = 'Debug'
 cd D:\HSBCArchive\app
-.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\search.log
+.\HSBC.Archive.Web.exe 2>&1 | Tee-Object D:\HSBCArchive\search2.log
 ```
 
-Leave it running, do a search from your laptop browser, then Ctrl+C and:
+Do **one** search, then Ctrl+C and:
 
 ```powershell
 Start-Service HSBCArchive
-Select-String -Path D:\HSBCArchive\search.log -Pattern '"LogLevel":"(Error|Critical)"' |
-  Select-Object -First 2 | ForEach-Object { $_.Line }
+$i = (Select-String -Path D:\HSBCArchive\search2.log -Pattern 'ViewerExceptionFilter' | Select-Object -First 1).LineNumber
+Get-Content D:\HSBCArchive\search2.log | Select-Object -Skip ([Math]::Max(0, $i - 6)) -First 6 |
+  Out-File D:\HSBCArchive\search-sql.txt
+Get-Content D:\HSBCArchive\search-sql.txt
 ```
 
-Send me the **first** error line.
+That prints the few statements immediately before the failure. Send me those, and **tell me exactly what you typed in the search box** — whether it was English, Bangla, or contained punctuation changes which code path runs.
 
-My guess, for what it's worth: another SQL Server difference, like the `IdentityColumnSize` one. The build verifies against SQLite, so a query that relies on SQLite behaviour — collation, a LIKE pattern, or a type coercion — passes every test here and fails on SQL Server. That's the same gap that produced the schema bug, and it's why SQL Server acceptance being "not executed" matters.
+Where I think this is heading, from reading the query: the search runs five ranked passes over `ArchiveAdminIndex`, and the body match uses `BodyNormalized`, which the schema declares as `Unlimited()` ([ArchiveSchema.cs:234](src/Modules/HSBC.Archive.Core/Persistence/ArchiveSchema.cs#L234)). On SQLite that's just text; on SQL Server an unlimited column has real restrictions about where it can appear — it can be `LIKE`'d but not compared, sorted or de-duplicated. If YesSql emits a `DISTINCT` or a comparison involving that column, SQL Server rejects the statement outright while SQLite runs it happily. That would be the same category of defect as the `IdentityColumnSize` one: invisible to a SQLite-only test suite.
 
-If the log shows nothing at `Error` level, re-run the Select-String with `Warning` included and send the last twenty lines instead — and tell me what you typed in the search box, since a specific character (an apostrophe, a `%`, Bangla text) would point somewhere quite different.
+I'd rather confirm that from the actual SQL than fix what I guessed, so send the log lines.
