@@ -1,30 +1,40 @@
-ACLs are right now — `Drop` shows `NT AUTHORITY\NETWORK SERVICE:(OI)(CI)(M)`, and Runtime/Media were re-secured (10 and 89 files). But the service won't stay up.
+My `fixacl.ps1` broke it — that's my error. The `/inheritance:r` with `/T` stripped the inherited permissions from the existing files and the replacement grants didn't land on them properly, so now even **your** administrator account is denied on `tenants.json` and the data-protection key. That's why the site is down.
 
-The Service Control Manager logs start failures to the **System** log, not Application — that's a different place from everywhere we've looked:
-
-```powershell
-Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control Manager'} -MaxEvents 15 |
-  Where-Object { $_.Message -like '*HSBCArchive*' } |
-  Format-List TimeCreated, Id, Message
-```
-
-And in parallel, the app's own startup error:
+Recovery — save as `D:\HSBCArchive\resetacl.ps1` and run it:
 
 ```powershell
-foreach ($e in (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment) {
-    $k, $v = $e -split '=', 2
-    Set-Item -Path "Env:$k" -Value $v
-}
-cd D:\HSBCArchive\app
-.\HSBC.Archive.Web.exe
-```
+Stop-Service HSBCArchive -ErrorAction SilentlyContinue
 
-Send me the first error from either.
+# Reclaim ownership so the ACLs can be rewritten at all.
+& takeown.exe /F D:\HSBCArchiveData /R /D Y | Out-Null
 
-If the foreground run starts cleanly — which it may, since you have Full Control on those folders — then something is still blocked for `NETWORK SERVICE` specifically, and the next check is the parent folder, which my script never touched:
+# Harden once, at the top, and let everything below inherit it.
+& icacls.exe D:\HSBCArchiveData /inheritance:r /grant:r `
+    "*S-1-5-20:(OI)(CI)M" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" /Q
+if ($LASTEXITCODE -ne 0) { throw "icacls failed on the root with exit code $LASTEXITCODE" }
 
-```powershell
+# Drop every explicit ACE below it so children simply inherit the above.
+& icacls.exe "D:\HSBCArchiveData\*" /reset /T /C /Q
+if ($LASTEXITCODE -ne 0) { throw "icacls reset failed with exit code $LASTEXITCODE" }
+
 icacls D:\HSBCArchiveData
+icacls D:\HSBCArchiveData\Runtime\Orchard\tenants.json
+
+Start-Service HSBCArchive
+Start-Sleep 25
+Get-Service HSBCArchive | Select-Object Status, Name
 ```
 
-`NETWORK SERVICE` needs at least traverse/read there to reach the three sub-folders. It previously had that through `BUILTIN\Users` inherited from `D:\`; if that's still intact it's not the cause, but it's the obvious gap given I locked the children down and left the parent alone.
+Run with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\HSBCArchive\resetacl.ps1
+```
+
+Both `icacls` outputs should show `NT AUTHORITY\NETWORK SERVICE:(M)`, Administrators and SYSTEM — the file's entries marked `(I)` for inherited.
+
+What's different this time: permissions are set **once on the parent** and inherited downward, instead of stamped onto every file individually. That's what I should have done originally — one ACL to reason about, new files get it automatically, and nothing to go wrong per-file.
+
+This keeps the hardening you need (no `BUILTIN\Users` write on archive data) *and* gives `NETWORK SERVICE` the access the ingest requires.
+
+If `takeown` reports failures on some files, tell me — that would mean something else holds them and we'd handle those separately rather than forcing it.
