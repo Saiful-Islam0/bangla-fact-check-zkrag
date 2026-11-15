@@ -1,90 +1,43 @@
-I'll read your deck first so the script matches what's on Slides 2–4.
+I'll pull together trustworthy, beginner-friendly sources for each slide topic.
 
-The script below follows what's actually on Slides 2–4 and their speaker notes, and each slide runs about 1.5–2 minutes at a normal speaking pace.
+These are good places to read more, grouped by the slide they support. I've put the most beginner-friendly source first in each group.
 
-**How to read the cues:** **[PAUSE]** means a 2-second pause. **[BEAT]** means a short half-second pause. **Bold** words get vocal emphasis. *[→ point]* means gesture to that part of the slide.
+## Best place to start
 
----
+**Elements of AI** (free online course) – elementsofai.com
+It's a free online course for everyone interested in learning what AI is, what is possible (and not possible) with AI, and how it affects our lives – with no complicated math or programming required. It was created by MinnaLearn and the University of Helsinki. It covers history, machine learning, neural networks and the wider impact of AI, so it lines up with all three of your slides. It takes approximately 25 hours to complete, but you can finish at your own pace.
 
-## Slide 2: 75 years in the making
-*(about 1 min 45 sec)*
+## Slide 2: History of AI
 
-Let's start with a question that may surprise you. **How old is AI?**
+- **Live Science, "12 game-changing moments in the history of AI"**: An easy timeline that runs from Alan Turing's seminal paper to the advent of ChatGPT. It includes the "AI winters", which make good background for your talk.
+- **GovTech Singapore, "The History of AI – Part 1"**: A clear two-part series. It explains that Turing's paper introduced the idea of the Turing Test to determine if a machine could exhibit intelligent behaviour indistinguishable from a human.
+- **Wikipedia, "Computing Machinery and Intelligence"**: Background on the original 1950 paper, which was published in 1950 in Mind.
 
-[BEAT]
+## Slide 3: How AI works
 
-Most of us would say a few years, since it seems to have arrived overnight. In fact, it's about **seventy-five years old.** [PAUSE]
+- **3Blue1Brown, Neural Networks series** (free on YouTube and at 3blue1brown.com/topics/neural-networks): Widely recommended as a starting point. It builds an intuitive understanding of how neural networks learn without assuming any prior ML knowledge. It's visual and well suited to someone who makes videos. Be aware that it gets more mathematical after the first episode.
+- **IBM Design for AI, "AI basics"**: Short explainers written as technical guides for non-technical people.
 
-In **1950**, the British mathematician Alan Turing asked a simple question: *"Can machines think?"* *[→ 1950]* Six years later, in 1956, a group of researchers at Dartmouth gave the idea a name: **artificial intelligence.**
+## Slide 4: Types of AI
 
-By 1966 there was the first chatbot, ELIZA, which could hold very simple text conversations. In 1997, IBM's Deep Blue beat the world chess champion, Garry Kasparov. [BEAT] For decades, though, AI mostly stayed in research labs.
+- **IBM, "Understanding the different types of AI"**: This page uses the same framework as your slide. It says Narrow AI is the only type of AI that exists today. Any other form of AI is theoretical. Even OpenAI's ChatGPT is considered a form of Narrow AI.
+- **IBM Technology, "The 7 Types of AI"** (YouTube): A short video version of the same framework.
 
-Three things changed that: **far more data**, **much faster computers**, and **better methods**, especially what we call deep learning. *[→ 2012]* By 2012, computers could recognise images almost as well as people. In 2016, AlphaGo mastered Go, a game that depends on intuition, not just rules.
+## Recent context (2026)
 
-Then, in **2022**, ChatGPT reached **one hundred million users in two months.** [PAUSE] Overnight, AI went from the lab into everyone's pocket.
+- **Stanford HAI, AI Index Report 2026**: The most cited yearly overview of the field. One useful finding: Generative AI reached 53% population adoption within three years, which is faster than the PC or the internet. That figure could strengthen the "AI for everyone" point on Slide 2.
+- **HSBC, "HSBC and AI"**: This page includes HSBC's Principles for the Ethical Use of Data and AI, which supports the trust angle in your script.
+- **HSBC and Google Cloud partnership (June 2026)**: The partnership is expected to enable more than 200 new AI HSBC use cases over the next two years. It's a current internal example you can mention.
 
-And today, in 2026, we're seeing **agentic AI**, which means AI that doesn't just talk but starts to **act** for us. *[→ 2026]*
-
-So the key message is this: [BEAT] **AI isn't new. What's new is how powerful and how accessible it has become.** [PAUSE]
-
-**Transition:** That raises the obvious question. If AI has been around this long, **how does it actually work?** Let's take the mystery out of it.
-
----
-
-## Slide 3: How AI works, in four steps
-*(about 1 min 50 sec)*
-
-Here's the most important thing to know about AI: [BEAT] **it doesn't think the way we do.** It learns **patterns** from examples, and then it makes **predictions.** It does that in four steps. *[→ steps]*
-
-**Step one: data.** AI is shown huge numbers of examples, such as transactions, documents or conversations.
-
-**Step two: learning.** It spots patterns in those examples **on its own**, often patterns no human could see.
-
-**Step three: the model.** Those patterns are stored as what we call a "model." Think of it as the AI's **learned experience.**
-
-**Step four: prediction.** When it's given something new, it predicts the **most likely** answer. [PAUSE]
-
-Let me make that real. *[→ analogy box]* Picture a new graduate joining our Fraud Operations team. On day one they know very little. After reviewing **thousands** of past cases, they develop an instinct for what looks suspicious. [BEAT] AI does exactly the same thing, but across **billions** of transactions, in **seconds**, and without ever getting tired.
-
-Tools like ChatGPT work the same way. They predict the next most likely **word**. [BEAT] That's why they can sound completely confident and still be wrong.
-
-That brings us to the line I'd like you to remember from this slide: *[→ "Important" box]* [PAUSE] **AI predicts what is likely, not what is certain.** [BEAT] That's exactly why, at HSBC, **people stay in charge.** It's how we protect the **trust** our customers place in us.
-
-**Transition:** Now that we know how AI learns, you'll hear a lot of different labels for it. Let's sort out the **types of AI** in plain English.
-
----
-
-## Slide 4: The types of AI you'll hear about
-*(about 1 min 55 sec)*
-
-There are two simple ways to sort AI: by **how capable** it is, and by **what it does.**
-
-First, capability. *[→ left column]*
-
-At the top is **Super AI**: smarter than humans at everything. [BEAT] That's **theoretical.** It's the stuff of films and debate.
-
-Next is **General AI**: human-level ability across *any* task, so it could learn, reason and switch between jobs the way you and I do. [BEAT] **It has not been achieved.**
-
-At the bottom is **Narrow AI**: excellent at **one specific task.** *[→ "We are here"]* And here's the key point: [PAUSE] **every AI in use today is Narrow AI.** That includes ChatGPT. It may seem general, but it's still a very sophisticated specialist.
-
-Now, what it does. *[→ right side]* All three of these are forms of Narrow AI.
-
-**Predictive AI** analyses past data to forecast or flag. Banking has used it for years in **fraud alerts** and **credit risk scoring.**
-
-**Generative AI** is what most of us now use day to day. It **creates** new content: text, images, code. It can help **draft an email** or **summarise a long report.**
-
-**Agentic AI** is the newest. It plans and completes **multi-step tasks**, such as preparing a case file. [BEAT] Notice the last three words on the slide: **"for human review."** [PAUSE]
-
-So whatever the type, the principle doesn't change. **AI does the heavy lifting. People make the call.**
-
-**Transition:** So that's where AI came from, how it works, and the types you'll meet. Now let's look at what matters most: **how we're already using it here at HSBC, and how to use it well.**
-
----
-
-**Things to check before you present:**
-
-- **Topics on Slide 4:** Your brief asked for Narrow, General and Generative AI. The slide also shows Super, Predictive and Agentic AI, so the script covers all six to match it. General AI and Generative AI are the clearest contrast for a non-technical room.
-- **Length:** The full script runs about 5½ minutes. If you're short on time, the 1966 and 1997 milestones on Slide 2 are the easiest to cut.
-- **Fact-checking:** The dates and figures come from your slides. The ChatGPT "100 million users in two months" figure is widely reported, but it's an estimate, so check it if you'll be quoted.
-
-Want me to also write the scripts for Slides 1, 5 and 6, or put this into a printable doc you can rehearse from?
+Sources:
+- [Elements of AI](https://www.elementsofai.com/)
+- [Live Science – 12 game-changing moments in AI history](https://www.livescience.com/technology/artificial-intelligence/12-game-changing-moments-in-the-history-of-ai)
+- [GovTech Singapore – The History of AI, Part 1](https://www.tech.gov.sg/technews/the-history-of-ai-part-1/)
+- [Wikipedia – Computing Machinery and Intelligence](https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence)
+- [3Blue1Brown – Neural Networks](https://www.3blue1brown.com/topics/neural-networks)
+- [IBM Design for AI – AI basics](https://www.ibm.com/design/ai/basics/ai)
+- [IBM – Types of artificial intelligence](https://www.ibm.com/think/topics/artificial-intelligence-types)
+- [Stanford HAI – 2026 AI Index Report](https://hai.stanford.edu/ai-index/2026-ai-index-report)
+- [HSBC and AI](https://www.hsbc.com/who-we-are/businesses-and-customers/hsbc-and-ai)
+- [HSBC – Transforming HSBC with AI](https://www.hsbc.com/who-we-are/hsbc-and-digital/hsbc-and-ai/transforming-hsbc-with-ai)
+- [HSBC and Google Cloud partnership (June 2026)](https://www.hsbc.com/news-and-views/news/media-releases/2026/hsbc-and-google-cloud-announce-transformative-ai-banking-partnership)
