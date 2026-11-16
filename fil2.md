@@ -1,43 +1,65 @@
-I'll pull together trustworthy, beginner-friendly sources for each slide topic.
+Found it. Two different situations:
 
-These are good places to read more, grouped by the slide they support. I've put the most beginner-friendly source first in each group.
+## Issue 2 is expected — not a bug
 
-## Best place to start
+The chip is hidden because **Windows Authentication isn't enabled in IIS yet**. Right now `/archive/whoami` returns 401, the script retries, gets 204, and stays hidden — exactly as designed. You can confirm by opening `https://<host>:9443/archive/whoami` directly.
 
-**Elements of AI** (free online course) – elementsofai.com
-It's a free online course for everyone interested in learning what AI is, what is possible (and not possible) with AI, and how it affects our lives – with no complicated math or programming required. It was created by MinnaLearn and the University of Helsinki. It covers history, machine learning, neural networks and the wider impact of AI, so it lines up with all three of your slides. It takes approximately 25 hours to complete, but you can finish at your own pace.
+To turn it on: **IIS Manager → your site → Authentication → enable Windows Authentication**, keep **Anonymous enabled and as the default**, then recycle the pool.
 
-## Slide 2: History of AI
+I earlier said wait for the SPN and Group Policy. Worth trying now anyway: your hostname is a short name with no dots, which Windows usually classifies as Local Intranet automatically, so it may negotiate silently without the GPO push. If you get a credential prompt instead, turn it back off and wait for the AD team.
 
-- **Live Science, "12 game-changing moments in the history of AI"**: An easy timeline that runs from Alan Turing's seminal paper to the advent of ChatGPT. It includes the "AI winters", which make good background for your talk.
-- **GovTech Singapore, "The History of AI – Part 1"**: A clear two-part series. It explains that Turing's paper introduced the idea of the Turing Test to determine if a machine could exhibit intelligent behaviour indistinguishable from a human.
-- **Wikipedia, "Computing Machinery and Intelligence"**: Background on the original 1950 paper, which was published in 1950 in Mind.
+## Issue 1 is real — wrong media root, almost certainly
 
-## Slide 3: How AI works
+Images are stored at **`<MediaRoot>\Default`** — the code appends the tenant name. Two ways this breaks:
 
-- **3Blue1Brown, Neural Networks series** (free on YouTube and at 3blue1brown.com/topics/neural-networks): Widely recommended as a starting point. It builds an intuitive understanding of how neural networks learn without assuming any prior ML knowledge. It's visual and well suited to someone who makes videos. Be aware that it gets more mathematical after the first episode.
-- **IBM Design for AI, "AI basics"**: Short explainers written as technical guides for non-technical people.
+- You entered a **different** media root than the service used → new empty folder
+- You entered `...\Media\Default` when the old value was `...\Media` → app now looks in `...\Media\Default\Default`
 
-## Slide 4: Types of AI
+Either way the installer *creates* the folder and sets permissions without complaint, so there's no error — just no images. Same shape as the database name.
 
-- **IBM, "Understanding the different types of AI"**: This page uses the same framework as your slide. It says Narrow AI is the only type of AI that exists today. Any other form of AI is theoretical. Even OpenAI's ChatGPT is considered a form of Narrow AI.
-- **IBM Technology, "The 7 Types of AI"** (YouTube): A short video version of the same framework.
+**Compare what the site uses now against what the service used:**
 
-## Recent context (2026)
+```powershell
+# What IIS is using now
+Import-Module WebAdministration
+(Get-WebConfiguration -PSPath 'MACHINE/WEBROOT/APPHOST' `
+  -Filter 'system.applicationHost/applicationPools/add[@name="HSBCArchive"]/environmentVariables').Collection |
+  Where-Object { $_.name -like '*StorageRoot*' -or $_.name -like '*DataRoot*' } |
+  Format-Table name, value -AutoSize
 
-- **Stanford HAI, AI Index Report 2026**: The most cited yearly overview of the field. One useful finding: Generative AI reached 53% population adoption within three years, which is faster than the PC or the internet. That figure could strengthen the "AI for everyone" point on Slide 2.
-- **HSBC, "HSBC and AI"**: This page includes HSBC's Principles for the Ethical Use of Data and AI, which supports the trust angle in your script.
-- **HSBC and Google Cloud partnership (June 2026)**: The partnership is expected to enable more than 200 new AI HSBC use cases over the next two years. It's a current internal example you can mention.
+# What the old service used (still in the registry — it's disabled, not removed)
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\HSBCArchive').Environment |
+  Where-Object { $_ -like '*StorageRoot*' -or $_ -like '*DataRoot*' }
+```
 
-Sources:
-- [Elements of AI](https://www.elementsofai.com/)
-- [Live Science – 12 game-changing moments in AI history](https://www.livescience.com/technology/artificial-intelligence/12-game-changing-moments-in-the-history-of-ai)
-- [GovTech Singapore – The History of AI, Part 1](https://www.tech.gov.sg/technews/the-history-of-ai-part-1/)
-- [Wikipedia – Computing Machinery and Intelligence](https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence)
-- [3Blue1Brown – Neural Networks](https://www.3blue1brown.com/topics/neural-networks)
-- [IBM Design for AI – AI basics](https://www.ibm.com/design/ai/basics/ai)
-- [IBM – Types of artificial intelligence](https://www.ibm.com/think/topics/artificial-intelligence-types)
-- [Stanford HAI – 2026 AI Index Report](https://hai.stanford.edu/ai-index/2026-ai-index-report)
-- [HSBC and AI](https://www.hsbc.com/who-we-are/businesses-and-customers/hsbc-and-ai)
-- [HSBC – Transforming HSBC with AI](https://www.hsbc.com/who-we-are/hsbc-and-digital/hsbc-and-ai/transforming-hsbc-with-ai)
-- [HSBC and Google Cloud partnership (June 2026)](https://www.hsbc.com/news-and-views/news/media-releases/2026/hsbc-and-google-cloud-announce-transformative-ai-banking-partnership)
+**Then find where your images actually are:**
+
+```powershell
+Get-ChildItem D:\ -Recurse -Directory -Filter 'Default' -ErrorAction SilentlyContinue |
+  ForEach-Object {
+    $n = (Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+    if ($n -gt 0) { "{0}  ({1} files)" -f $_.FullName, $n }
+  }
+```
+
+The folder with your images is `<the right MediaRoot>\Default`. So if that prints `D:\HSBCArchiveData\Media\Default`, your media root is `D:\HSBCArchiveData\Media`.
+
+**To fix, just correct the pool variable — no reinstall:**
+
+```powershell
+Import-Module WebAdministration
+$pool = "IIS:\AppPools\HSBCArchive"
+$env  = (Get-ItemProperty $pool).environmentVariables
+# then set the StorageRoot entry to the correct parent path, and:
+Restart-WebAppPool -Name HSBCArchive
+```
+
+Easiest is IIS Manager → Application Pools → HSBCArchive → Advanced Settings → Environment Variables → fix the `...Media__StorageRoot` value → OK → recycle.
+
+**One thing to check after fixing:** the installer runs `icacls /inheritance:r`, which *strips* inherited permissions and grants only the pool identity, Administrators and SYSTEM. It only did that to the path you gave it. If your real media folder wasn't that path, it still has the old service's permissions, so grant the pool identity access:
+
+```powershell
+icacls "<real MediaRoot>\Default" /grant "IIS AppPool\HSBCArchive:(OI)(CI)M"
+```
+
+If images still don't appear after that, check the Windows Event Log for **event 2404**, which the app logs when a preview file is missing — that distinguishes "wrong folder" from "file genuinely absent".
