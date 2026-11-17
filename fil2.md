@@ -1,68 +1,78 @@
-Analyzed uat-iis-deployment.md:L1-336
-Analyzed frontend.md:L1-332
-Analyzed frontend.md:L1-332
-Analyzing setup-iis.ps1:L1-800
-Analyzed Program.cs:L1-4
-Analyzed ArchiveApplication.cs:L1-177
-Analyzed setup-iis.ps1:L1-638
-Analyzed ArchiveController.cs:L1-107
-Ran list Frontend controllers
-Analyzed BrandingController.cs:L1-23
-Analyzed archive.js:L1-346
-Ran find whoami endpoint in source
-Analyzed web.config:L1-44
-Analyzed ArchiveProfileController.cs:L1-50
-Analyzed ArchiveWindowsProfile.cs:L1-86
+Analyzed build-uat-package.sh:L1-44
+Analyzed RELEASE-NOTES.md:L1-100
+Ran list release artifacts directory
+Created check_css_history.py
+Ran inspect user messages in Claude sessions
+Created check_nov7.py
+Ran inspect Nov 7 CSS edits in Claude session
+Created dump_pre_nov7.py
+Ran read pre-Nov 7 CSS from Claude session
+Created dump_home_css.py
+Ran extract original premium home.css from Claude session
+Analyzed output.txt:L45-210
+Edited home.css
+Edited home.css
+Edited components.css
+Ran build Release and publish win-x64 hotfix DLLs · Exited with code 1
 
-Under IIS, the profile chip works through `/archive/whoami`:
-1. The browser calls `/archive/whoami` anonymously.
-2. The app returns `401 Unauthorized` once so **IIS** can attach a `WWW-Authenticate: Negotiate` challenge.
-3. The browser replies with your Windows token, IIS populates `HttpContext.User`, and `/archive/whoami` returns your account/admin JSON.
+I found the exact root cause of the missing CSS/animations as well (an earlier Nov 7 session had overwritten `home.css` and `components.css` with a "flat editorial pass" that removed `--archive-grad`, the hero drifting glow, the breathing radial rings, and the red gradient hover on Explore tiles and page intros).
 
-Because `setup-iis.ps1` leaves **Windows Authentication disabled** in IIS (and the earlier `Install-WindowsFeature` command did not include the `Web-Windows-Auth` role service), IIS sends back a bare `401` with no `WWW-Authenticate` header, so the browser never sends a token and the chip stays hidden.
+I have:
+1. Updated `HSBC.Archive.Admin` (`ArchiveWindowsProfile.cs`) to query Active Directory (`UserPrincipal.FindByIdentity`) for the employee's full display name (cached for 30 minutes) alongside their User ID (`sAMAccountName`).
+2. Updated `HSBC.Archive.Theme` (`Layout.cshtml`, `archive.js`, `components.css`, `home.css`, `bn.po`, and bumped resource version to `0.13.0`) so that:
+   - The navbar shows a clean circular **profile icon button** that opens a popover card on click with **Name**, **User ID**, and (for Admins/Super Admins) the **Open the admin panel** button.
+   - The navbar search is a compact **search icon button** that smoothly expands into the search bar when clicked (or when `/` is pressed) and collapses on close/Escape.
+   - All of the missing animations, hero drifting glow, breathing rings, and red gradient hover effects are restored.
 
-### Step 1: Install & enable Windows Authentication on the IIS site (keep Anonymous enabled)
+I am compiling and publishing the updated `win-x64` DLLs right now—I will share the exact DLL paths and drop-in instructions as soon as the build task completes in a few seconds.
 
-Run this in an **elevated PowerShell** session on the UAT server:
+Analyzed task-158.log:L1-34
+Ran publish win-x64 hotfix DLLs · Exited with code 1
+Ran stage updated DLLs and localization into artifacts/hotfix-dlls
+Ran verify embedded resources in hotfix DLLs
+Ran check wwwroot structure in published IIS artifact
+Ran find PO localization files in published IIS artifact
+Ran find all PO files in release artifact
+Analyzed HSBC.Archive.Web.csproj:L1-26
+Analyzed HSBC.Archive.Theme.csproj:L1-9
+Analyzed Directory.Build.props:L1-8
+Analyzed Directory.Build.props:L1-15
+Ran publish win-x64 0.19.0-uat.1 DLLs for IIS drop-in
+
+The updated `win-x64` (`0.19.0-uat.1`) DLLs are built and ready in [`artifacts/hotfix-dlls/`](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls):
+
+### 1. Files to Copy to the Server
+Only **two DLLs** (plus the Bangla `.po` file if you use Bangla on the frontend) changed:
+1. **[HSBC.Archive.Theme.dll](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/HSBC.Archive.Theme.dll)** (`138 KB`) — contains:
+   - The circular **profile icon button** in the navbar that opens a popover card on click showing **Name**, **User ID**, and (for Admins/Super Admins) the **Open the admin panel** button.
+   - The compact **search icon button** in the navbar that expands into the search bar when clicked (or when `/` is pressed) and collapses on close/Escape.
+   - All of the restored **animations & CSS** (`--archive-grad`, hero drifting red glow, breathing radial rings, red gradient hover on Explore tiles, gradient stacked page-intro banners, and radial footer/dark-band washes), with cache-busted resource version `0.13.0`.
+2. **[HSBC.Archive.Admin.dll](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/HSBC.Archive.Admin.dll)** (`1.4 MB`) — contains the updated [ArchiveWindowsProfile.cs](file:///Users/saiful/Documents/HSBC/src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveWindowsProfile.cs) that queries Active Directory (`UserPrincipal.FindByIdentity`) for the employee's full display name (cached for 30 minutes) alongside their Employee/User ID (`sAMAccountName`).
+3. *(Optional, for Bangla labels)* **[HSBC.Archive.Theme.po](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/Localization/bn/HSBC.Archive.Theme.po)** → goes into `<app>\Localization\bn\HSBC.Archive.Theme.po`.
+
+---
+
+### 2. How to Replace Them on the IIS Server
+
+Because the `app` folder is locked to Read/Execute for the pool identity and `w3wp.exe` holds the DLLs while running, run this in an **elevated PowerShell** session on the server after copying the two DLLs onto the server (for example into `C:\Temp\hotfix`):
 
 ```powershell
-# 1. Ensure the IIS Windows Authentication role feature is installed
-Install-WindowsFeature -Name Web-Windows-Auth
-
-# 2. Keep Anonymous Authentication ENABLED (so public pages don't challenge),
-#    and enable Windows Authentication alongside it (so /archive/whoami's 401 gets a Negotiate header)
 Import-Module WebAdministration
+$app = (Get-Website -Name HSBCArchive).physicalPath
 
-Set-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Location 'HSBCArchive' `
-  -Filter 'system.webServer/security/authentication/anonymousAuthentication' `
-  -Name 'enabled' -Value $true
+# 1. Stop the app pool so w3wp.exe releases the DLLs
+Stop-WebAppPool -Name HSBCArchive
 
-Set-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Location 'HSBCArchive' `
-  -Filter 'system.webServer/security/authentication/windowsAuthentication' `
-  -Name 'enabled' -Value $true
+# 2. Copy the two updated DLLs into the IIS app directory
+Copy-Item "C:\Temp\hotfix\HSBC.Archive.Theme.dll" -Destination "$app\HSBC.Archive.Theme.dll" -Force
+Copy-Item "C:\Temp\hotfix\HSBC.Archive.Admin.dll" -Destination "$app\HSBC.Archive.Admin.dll" -Force
 
-Restart-WebAppPool -Name HSBCArchive
+# 3. Ensure the pool identity and IIS_IUSRS have Read/Execute on the replaced files
+icacls "$app\HSBC.Archive.Theme.dll" /grant "IIS AppPool\HSBCArchive:RX" "BUILTIN\IIS_IUSRS:RX"
+icacls "$app\HSBC.Archive.Admin.dll" /grant "IIS AppPool\HSBCArchive:RX" "BUILTIN\IIS_IUSRS:RX"
+
+# 4. Start the app pool back up
+Start-WebAppPool -Name HSBCArchive
 ```
 
-### Step 2: Verify the challenge header on the server
-
-Still in PowerShell on the server, run:
-
-```powershell
-[Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-try {
-    Invoke-WebRequest -UseBasicParsing -Uri "https://localhost:9443/archive/whoami"
-} catch {
-    $_.Exception.Response.StatusCode
-    $_.Exception.Response.Headers['WWW-Authenticate']
-}
-```
-*(Replace `9443` if you bound the site to `443`.)*
-- It should print `Unauthorized` followed by **`Negotiate, NTLM`**.
-
-### Step 3: Check in your browser
-Reload the site from your domain-joined HSBC laptop:
-- If you access the site via its **short hostname** (e.g. `https://servername:9443`), Edge/Chrome automatically treats it as **Local Intranet** and silently answers the challenge—the AD profile chip should appear immediately.
-- If you access it via an **FQDN with dots** (or IP address) and either see a login popup or still no chip, the URL isn't in Windows' Local Intranet zone yet. To test on your laptop, open **Control Panel → Internet Options → Security → Local intranet → Sites → Advanced**, add `https://<your-hostname>`, and reload.
-
-Run Step 1 and Step 2 and let me know what the test command outputs (or what happens in the browser)!
+Reload the page in your browser (`Ctrl+F5`) and you'll immediately see the restored animations/gradients, the compact expandable search icon, and the clickable AD profile icon with the details popover.
