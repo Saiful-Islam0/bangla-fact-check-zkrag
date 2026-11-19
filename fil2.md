@@ -1,53 +1,74 @@
-The HTTPS warning happens because the original certificate bound to IIS only had `bdw25135475` on it—not `archive.bd.hsbc` (`ERR_CERT_COMMON_NAME_INVALID`).
+That happens because your existing company certificate (`BDW25135475_bdw25135475`) was issued by HSBC's internal CA **only** for the server's machine name (`bdw25135475` / `bdw25135475.hbap.adroot.hsbc`) before the `archive.bd.hsbc` domain name was created.
 
-Here are the two ways to fix it:
+In HTTPS, a browser requires the exact hostname in the URL bar (`archive.bd.hsbc`) to be inside the certificate's **Subject Alternative Name (SAN)** list, and a signed certificate cannot have a new domain name added to it without being re-issued by the Certificate Authority (CA).
+
+Here is how to fix it:
 
 ---
 
-### 1. Immediate Fix: Replace the IIS Certificate with One Covering `archive.bd.hsbc`
+### Step 1: Check if the Server Can Request the Updated Company Certificate Directly
 
-Run this in **elevated PowerShell** on the server (this creates the folder if missing, generates a certificate covering both `archive.bd.hsbc` and `bdw25135475`, trusts it on the server, and rebinds IIS to it):
+First, run this in PowerShell on the server to see which internal HSBC CA issued `BDW25135475_bdw25135475`:
 
 ```powershell
-Import-Module WebAdministration
-New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
-
-# 1. Create a certificate with Subject Alternative Names for archive.bd.hsbc + bdw25135475
-$cert = New-SelfSignedCertificate -Subject "CN=archive.bd.hsbc" `
-  -DnsName "archive.bd.hsbc","bdw25135475","bdw25135475.hbap.adroot.hsbc" `
-  -CertStoreLocation "Cert:\LocalMachine\My" `
-  -FriendlyName "HSBC Archive UAT (archive.bd.hsbc)" `
-  -KeyExportPolicy Exportable `
-  -NotAfter (Get-Date).AddYears(2)
-
-# 2. Trust it in the Server's Trusted Root store
-$cerPath = "C:\Temp\archive-bd-hsbc.cer"
-Export-Certificate -Cert $cert -FilePath $cerPath -Force | Out-Null
-Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
-
-# 3. Rebind all HTTPS bindings on HSBCArchive to this new certificate
-Get-WebBinding -Name HSBCArchive -Protocol https | ForEach-Object {
-    $_.AddSslCertificate($cert.Thumbprint, "My")
-}
-
-Write-Host "Bound new cert ($($cert.Thumbprint)) to HSBCArchive. Exported to $cerPath" -ForegroundColor Green
+Get-ChildItem Cert:\LocalMachine\My |
+  Where-Object { $_.FriendlyName -like '*25135475*' -or $_.Subject -like '*25135475*' } |
+  Select-Object FriendlyName, Subject, Issuer, DnsNameList |
+  Format-List
 ```
 
-- **On the server itself:** Close and reopen Edge/Chrome, then open `https://archive.bd.hsbc:9443`—the warning will be gone.
-- **On your laptop:** Copy `C:\Temp\archive-bd-hsbc.cer` from the server to your laptop, double-click it → **Install Certificate** → **Local Machine** → **Place all certificates in the following store** → **Browse** → **Trusted Root Certification Authorities** → **Finish**, then restart your browser.
+Now check if this server has permission to request a new certificate from that same HSBC CA with `archive.bd.hsbc` included:
+1. Press `Win + R` on the server, type **`certlm.msc`**, and press Enter.
+2. Go to **Personal → Certificates**.
+3. Right-click your existing **`BDW25135475_bdw25135475`** certificate → **All Tasks → Advanced Operations → Renew This Certificate with the Same Key...** (or right-click **Certificates → All Tasks → Request New Certificate...**).
+4. If the wizard shows an active HSBC template with **"More information is required..."**:
+   - Click the link to open **Properties**.
+   - Go to the **Subject** tab → under **Alternative name**, select **Type: DNS**, and add:
+     - `archive.bd.hsbc`
+     - `bdw25135475`
+     - `bdw25135475.hbap.adroot.hsbc`
+   - Click **OK → Enroll**.
+   - Once enrolled, select the newly issued certificate in **IIS Manager → Sites → HSBCArchive → Bindings → https → Edit**.
 
 ---
 
-### 2. So Every HSBC Laptop Trusts It Automatically (For CEO / CIO / ExCo Review)
+### Step 2: If `certlm.msc` Does Not Allow Self-Enrollment (Generate a CSR for the IT / DNS Team)
 
-A self-signed certificate is only trusted by machines that have `archive-bd-hsbc.cer` in their Trusted Root store. So that **nobody else (like the CEO or CIO) sees a certificate warning** on their laptop:
+If the HSBC CA requires the IT/PKI team (or the colleague who set up `archive.bd.hsbc`) to approve a custom domain certificate, run this script in **elevated PowerShell** on the server. It generates a ready-to-submit **Certificate Signing Request (`C:\Temp\archive-bd-hsbc.csr`)** with `archive.bd.hsbc` and `bdw25135475` in the SANs:
 
-Check if the server can request a certificate from HSBC's internal Active Directory Enterprise CA:
-1. On the server, press `Win + R`, type **`certlm.msc`**, and press Enter.
-2. Expand **Personal → Certificates**, right-click **Certificates → All Tasks → Request New Certificate...** → click **Next → Next**.
-3. If you see an internal template such as **Web Server** (or **HSBC Internal Web Server**):
-   - Click **More information is required to enroll for this certificate. Click here to configure settings.**
-   - Under **Subject → Subject name → Type: Common name**, add `archive.bd.hsbc`.
-   - Under **Alternative name → Type: DNS**, add `archive.bd.hsbc`, `bdw25135475`, and `bdw25135475.hbap.adroot.hsbc`.
-   - Click **OK → Enroll**, and then select that certificate in **IIS Manager → Sites → HSBCArchive → Bindings → https → Edit → SSL certificate**.
-4. If no template is listed there, send the hostname `archive.bd.hsbc` (or a CSR from **IIS Manager → Server Certificates → Create Certificate Request**) to the network/IT team who set up the `archive.bd.hsbc` DNS record—they can issue an internal HSBC CA `.pfx`/`.cer` that every HSBC laptop already trusts automatically.
+```powershell
+New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
+
+$inf = @"
+[Version]
+Signature="`$Windows NT`$"
+
+[NewRequest]
+Subject = "CN=archive.bd.hsbc"
+KeyLength = 2048
+Exportable = TRUE
+MachineKeySet = TRUE
+ProviderName = "Microsoft RSA SChannel Cryptographic Provider"
+RequestType = PKCS10
+KeyUsage = 0xa0
+
+[EnhancedKeyUsageExtension]
+OID=1.3.6.1.5.5.7.3.1
+
+[Extensions]
+2.5.29.17 = "{text}"
+_continue_ = "dns=archive.bd.hsbc&"
+_continue_ = "dns=bdw25135475&"
+_continue_ = "dns=bdw25135475.hbap.adroot.hsbc"
+"@
+
+$inf | Set-Content -LiteralPath "C:\Temp\request.inf" -Encoding ASCII
+certreq.exe -new -f "C:\Temp\request.inf" "C:\Temp\archive-bd-hsbc.csr"
+Write-Host "CSR created at C:\Temp\archive-bd-hsbc.csr" -ForegroundColor Green
+```
+
+Send **`C:\Temp\archive-bd-hsbc.csr`** to the colleague/team who set up `archive.bd.hsbc` so they can sign it with HSBC's internal CA and return the `.cer` file. Once they send back `archive-bd-hsbc.cer`, you just run:
+```powershell
+certreq.exe -accept "C:\Temp\archive-bd-hsbc.cer"
+```
+and pick it in IIS Bindings—then **every HSBC laptop will trust `https://archive.bd.hsbc` with a green/valid lock and zero warnings**.
