@@ -1,78 +1,77 @@
-Analyzed build-uat-package.sh:L1-44
-Analyzed RELEASE-NOTES.md:L1-100
-Ran list release artifacts directory
-Created check_css_history.py
-Ran inspect user messages in Claude sessions
-Created check_nov7.py
-Ran inspect Nov 7 CSS edits in Claude session
-Created dump_pre_nov7.py
-Ran read pre-Nov 7 CSS from Claude session
-Created dump_home_css.py
-Ran extract original premium home.css from Claude session
-Analyzed output.txt:L45-210
-Edited home.css
-Edited home.css
-Edited components.css
-Ran build Release and publish win-x64 hotfix DLLs · Exited with code 1
+Analyzed UatDeployment.cs:L1-72
 
-I found the exact root cause of the missing CSS/animations as well (an earlier Nov 7 session had overwritten `home.css` and `components.css` with a "flat editorial pass" that removed `--archive-grad`, the hero drifting glow, the breathing radial rings, and the red gradient hover on Explore tiles and page intros).
+The **HTTP 400 Bad Request** happens because ASP.NET Core's Host Filtering middleware checks `AllowedHosts` in `<app>\appsettings.UAT.json`. Right now `AllowedHosts` only lists `bdw25135475`, so any request with `Host: archive.bd.hsbc` is rejected with HTTP 400.
 
-I have:
-1. Updated `HSBC.Archive.Admin` (`ArchiveWindowsProfile.cs`) to query Active Directory (`UserPrincipal.FindByIdentity`) for the employee's full display name (cached for 30 minutes) alongside their User ID (`sAMAccountName`).
-2. Updated `HSBC.Archive.Theme` (`Layout.cshtml`, `archive.js`, `components.css`, `home.css`, `bn.po`, and bumped resource version to `0.13.0`) so that:
-   - The navbar shows a clean circular **profile icon button** that opens a popover card on click with **Name**, **User ID**, and (for Admins/Super Admins) the **Open the admin panel** button.
-   - The navbar search is a compact **search icon button** that smoothly expands into the search bar when clicked (or when `/` is pressed) and collapses on close/Escape.
-   - All of the missing animations, hero drifting glow, breathing rings, and red gradient hover effects are restored.
-
-I am compiling and publishing the updated `win-x64` DLLs right now—I will share the exact DLL paths and drop-in instructions as soon as the build task completes in a few seconds.
-
-Analyzed task-158.log:L1-34
-Ran publish win-x64 hotfix DLLs · Exited with code 1
-Ran stage updated DLLs and localization into artifacts/hotfix-dlls
-Ran verify embedded resources in hotfix DLLs
-Ran check wwwroot structure in published IIS artifact
-Ran find PO localization files in published IIS artifact
-Ran find all PO files in release artifact
-Analyzed HSBC.Archive.Web.csproj:L1-26
-Analyzed HSBC.Archive.Theme.csproj:L1-9
-Analyzed Directory.Build.props:L1-8
-Analyzed Directory.Build.props:L1-15
-Ran publish win-x64 0.19.0-uat.1 DLLs for IIS drop-in
-
-The updated `win-x64` (`0.19.0-uat.1`) DLLs are built and ready in [`artifacts/hotfix-dlls/`](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls):
-
-### 1. Files to Copy to the Server
-Only **two DLLs** (plus the Bangla `.po` file if you use Bangla on the frontend) changed:
-1. **[HSBC.Archive.Theme.dll](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/HSBC.Archive.Theme.dll)** (`138 KB`) — contains:
-   - The circular **profile icon button** in the navbar that opens a popover card on click showing **Name**, **User ID**, and (for Admins/Super Admins) the **Open the admin panel** button.
-   - The compact **search icon button** in the navbar that expands into the search bar when clicked (or when `/` is pressed) and collapses on close/Escape.
-   - All of the restored **animations & CSS** (`--archive-grad`, hero drifting red glow, breathing radial rings, red gradient hover on Explore tiles, gradient stacked page-intro banners, and radial footer/dark-band washes), with cache-busted resource version `0.13.0`.
-2. **[HSBC.Archive.Admin.dll](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/HSBC.Archive.Admin.dll)** (`1.4 MB`) — contains the updated [ArchiveWindowsProfile.cs](file:///Users/saiful/Documents/HSBC/src/Modules/HSBC.Archive.Admin/Security/Ad/ArchiveWindowsProfile.cs) that queries Active Directory (`UserPrincipal.FindByIdentity`) for the employee's full display name (cached for 30 minutes) alongside their Employee/User ID (`sAMAccountName`).
-3. *(Optional, for Bangla labels)* **[HSBC.Archive.Theme.po](file:///Users/saiful/Documents/HSBC/artifacts/hotfix-dlls/Localization/bn/HSBC.Archive.Theme.po)** → goes into `<app>\Localization\bn\HSBC.Archive.Theme.po`.
+> **Important:** In [UatDeployment.cs](file:///Users/saiful/Documents/HSBC/src/HSBC.Archive.Web/Deployment/UatDeployment.cs#L23-L25), `AllowedHosts` supports multiple hostnames separated by `;` with **no spaces** and **no `*` wildcards** (for example: `"archive.bd.hsbc;bdw25135475;bdw25135475.hbap.adroot.hsbc"`).
 
 ---
 
-### 2. How to Replace Them on the IIS Server
+### Step 1: Fix the HTTP 400 Error (`AllowedHosts` in `appsettings.UAT.json`)
 
-Because the `app` folder is locked to Read/Execute for the pool identity and `w3wp.exe` holds the DLLs while running, run this in an **elevated PowerShell** session on the server after copying the two DLLs onto the server (for example into `C:\Temp\hotfix`):
+Run this in an **elevated PowerShell** session on the server:
 
 ```powershell
 Import-Module WebAdministration
 $app = (Get-Website -Name HSBCArchive).physicalPath
+$settingsPath = Join-Path $app "appsettings.UAT.json"
 
-# 1. Stop the app pool so w3wp.exe releases the DLLs
-Stop-WebAppPool -Name HSBCArchive
+$json = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
 
-# 2. Copy the two updated DLLs into the IIS app directory
-Copy-Item "C:\Temp\hotfix\HSBC.Archive.Theme.dll" -Destination "$app\HSBC.Archive.Theme.dll" -Force
-Copy-Item "C:\Temp\hotfix\HSBC.Archive.Admin.dll" -Destination "$app\HSBC.Archive.Admin.dll" -Force
+# Semicolon-separated hostnames, NO spaces around semicolons, NO wildcards
+$json.AllowedHosts = "archive.bd.hsbc;bdw25135475;bdw25135475.hbap.adroot.hsbc"
 
-# 3. Ensure the pool identity and IIS_IUSRS have Read/Execute on the replaced files
-icacls "$app\HSBC.Archive.Theme.dll" /grant "IIS AppPool\HSBCArchive:RX" "BUILTIN\IIS_IUSRS:RX"
-icacls "$app\HSBC.Archive.Admin.dll" /grant "IIS AppPool\HSBCArchive:RX" "BUILTIN\IIS_IUSRS:RX"
-
-# 4. Start the app pool back up
-Start-WebAppPool -Name HSBCArchive
+$json | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $settingsPath -Encoding UTF8
+Restart-WebAppPool -Name HSBCArchive
 ```
 
-Reload the page in your browser (`Ctrl+F5`) and you'll immediately see the restored animations/gradients, the compact expandable search icon, and the clickable AD profile icon with the details popover.
+After running this, test **`https://archive.bd.hsbc:9443`**—the 400 error will be gone.
+
+---
+
+### Step 2: If You Want `https://archive.bd.hsbc` Without `:9443` (Port 443)
+If your site is currently bound only to port `9443`, visiting `https://archive.bd.hsbc` without `:9443` goes to port `443` (which may hit IIS's Default Web Site or nothing). To make `https://archive.bd.hsbc` work directly on port `443` with a matching certificate:
+
+```powershell
+Import-Module WebAdministration
+
+# 1. Create a certificate that covers both the new FQDN and the server hostname
+$cert = New-SelfSignedCertificate -Subject "CN=archive.bd.hsbc" `
+  -DnsName "archive.bd.hsbc","bdw25135475","bdw25135475.hbap.adroot.hsbc" `
+  -CertStoreLocation "Cert:\LocalMachine\My" `
+  -FriendlyName "HSBC Archive UAT (archive.bd.hsbc)" `
+  -NotAfter (Get-Date).AddYears(2)
+
+# Trust it on the server
+Export-Certificate -Cert $cert -FilePath "C:\Temp\archive-bd-hsbc.cer" | Out-Null
+Import-Certificate -FilePath "C:\Temp\archive-bd-hsbc.cer" -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+
+# 2. Update the existing 9443 binding to use the new cert
+Get-WebBinding -Name HSBCArchive -Protocol https | ForEach-Object {
+    $_.AddSslCertificate($cert.Thumbprint, 'My')
+}
+
+# 3. Also bind port 443 for archive.bd.hsbc (if port 443 is free or using SNI)
+if (-not (Get-WebBinding -Name HSBCArchive -Protocol https -Port 443 -HostHeader "archive.bd.hsbc" -ErrorAction SilentlyContinue)) {
+    New-WebBinding -Name HSBCArchive -Protocol https -Port 443 -HostHeader "archive.bd.hsbc" -SslFlags 1
+    (Get-WebBinding -Name HSBCArchive -Protocol https -Port 443 -HostHeader "archive.bd.hsbc").AddSslCertificate($cert.Thumbprint, 'My')
+}
+
+# Open firewall for 443 if not already open
+if (-not (Get-NetFirewallRule -DisplayName "HSBC Archive UAT HTTPS 443" -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName "HSBC Archive UAT HTTPS 443" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow | Out-Null
+}
+
+Restart-WebAppPool -Name HSBCArchive
+```
+
+---
+
+### Step 3: Keep the AD Profile Icon Working on `https://archive.bd.hsbc`
+Because `archive.bd.hsbc` contains dots, Windows treats it as the **Internet zone** instead of **Local Intranet** by default (so the browser won't silently send your AD token until it's trusted):
+1. On your client machine (or via Group Policy), open **Control Panel → Internet Options → Security → Local intranet → Sites → Advanced** and add **`https://archive.bd.hsbc`**.
+2. If you test `https://archive.bd.hsbc` from a browser **on the Windows Server itself**, Windows blocks loopback Windows Auth to a custom FQDN unless `BackConnectionHostNames` is registered on the server:
+   ```powershell
+   New-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" `
+     -Name "BackConnectionHostNames" -PropertyType MultiString `
+     -Value @("archive.bd.hsbc","bdw25135475","bdw25135475.hbap.adroot.hsbc") -Force
+   ```
